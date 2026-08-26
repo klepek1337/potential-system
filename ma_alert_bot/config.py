@@ -1,0 +1,73 @@
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from ma_alert_bot.environment import load_environment_file
+
+
+DEFAULT_OKX_API_BASE_URL = "https://www.okx.com"
+DEFAULT_POLL_INTERVAL_SECONDS = 30
+DEFAULT_DISPLAY_TIMEZONE = "Europe/Luxembourg"
+DEFAULT_STATE_DATABASE_PATH = "data/ma_alerts.sqlite3"
+MINIMUM_POLL_INTERVAL_SECONDS = 10
+
+
+def parse_boolean(environment_value: str | None, default_value: bool) -> bool:
+    if environment_value is None:
+        return default_value
+    return environment_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def parse_instrument_ids(environment_value: str | None) -> tuple[str, ...]:
+    if environment_value is None:
+        return ()
+    return tuple(
+        instrument_id.strip().upper()
+        for instrument_id in environment_value.split(",")
+        if instrument_id.strip()
+    )
+
+
+@dataclass(frozen=True)
+class Settings:
+    okx_api_base_url: str
+    instrument_ids: tuple[str, ...]
+    poll_interval_seconds: int
+    display_timezone: str
+    state_database_path: Path
+    dry_run: bool
+    telegram_bot_token: str | None
+    telegram_chat_id: str | None
+
+    @classmethod
+    def from_environment(cls) -> "Settings":
+        load_environment_file()
+
+        settings = cls(
+            okx_api_base_url=os.getenv("OKX_API_BASE_URL", DEFAULT_OKX_API_BASE_URL),
+            instrument_ids=parse_instrument_ids(os.getenv("OKX_INSTRUMENT_IDS")),
+            poll_interval_seconds=int(
+                os.getenv("POLL_INTERVAL_SECONDS", str(DEFAULT_POLL_INTERVAL_SECONDS))
+            ),
+            display_timezone=os.getenv("DISPLAY_TIMEZONE", DEFAULT_DISPLAY_TIMEZONE),
+            state_database_path=Path(
+                os.getenv("STATE_DATABASE_PATH", DEFAULT_STATE_DATABASE_PATH)
+            ),
+            dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
+            telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
+            telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.instrument_ids:
+            raise ValueError("OKX_INSTRUMENT_IDS must contain at least one instrument")
+        if self.poll_interval_seconds < MINIMUM_POLL_INTERVAL_SECONDS:
+            raise ValueError(
+                f"POLL_INTERVAL_SECONDS must be at least {MINIMUM_POLL_INTERVAL_SECONDS}"
+            )
+        if not self.dry_run and not self.telegram_bot_token:
+            raise ValueError("TELEGRAM_BOT_TOKEN is required when DRY_RUN=false")
+        if not self.dry_run and not self.telegram_chat_id:
+            raise ValueError("TELEGRAM_CHAT_ID is required when DRY_RUN=false")
