@@ -9,6 +9,7 @@ TELEGRAM_API_BASE_URL = "https://api.telegram.org"
 TELEGRAM_REQUEST_TIMEOUT_SECONDS = 10.0
 HTTP_USER_AGENT = "okx-ma-telegram-alerts/0.1"
 FOUR_HOUR_CANDLE_DURATION = timedelta(hours=4)
+RATIO_TO_PERCENT_MULTIPLIER = 100.0
 
 OUTCOME_HEADINGS = {
     TestOutcome.SUPPORT_DEFENDED: "🟢 SMA obroniona jako wsparcie",
@@ -26,6 +27,49 @@ def format_local_time(timestamp_ms: int, timezone_name: str) -> str:
     utc_datetime = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
     local_datetime = utc_datetime.astimezone(ZoneInfo(timezone_name))
     return local_datetime.strftime("%Y-%m-%d %H:%M %Z")
+
+
+def format_percentage(percentage_value: float) -> str:
+    return f"{percentage_value:+.2f}%"
+
+
+def build_program_started_message(
+    instrument_ids: tuple[str, ...],
+    touch_margin_ratio: float,
+) -> str:
+    touch_margin_percent = touch_margin_ratio * RATIO_TO_PERCENT_MULTIPLIER
+    return "\n".join(
+        (
+            "🚀 OKX SMA scanner uruchomiony",
+            "Interwał: H4",
+            "Średnie: SMA 20, SMA 50, SMA 120, SMA 200",
+            f"Margines kontaktu: {touch_margin_percent:.3g}%",
+            f"Instrumenty: {', '.join(instrument_ids)}",
+        )
+    )
+
+
+def build_current_levels_message(
+    instrument_id: str,
+    current_price: float,
+    moving_average_levels: dict[int, float],
+) -> str:
+    message_lines = [
+        f"📊 Aktualne poziomy SMA H4 — {instrument_id}",
+        f"Cena: {format_price(current_price)}",
+    ]
+    for moving_average_period, moving_average_value in moving_average_levels.items():
+        distance_percent = (
+            (current_price - moving_average_value)
+            / moving_average_value
+            * RATIO_TO_PERCENT_MULTIPLIER
+        )
+        price_position = "nad" if distance_percent >= 0 else "pod"
+        message_lines.append(
+            f"SMA {moving_average_period}: {format_price(moving_average_value)} "
+            f"({format_percentage(abs(distance_percent))} {price_position})"
+        )
+    return "\n".join(message_lines)
 
 
 def build_test_started_message(
@@ -94,6 +138,7 @@ class TelegramNotifier:
         self._bot_token = bot_token
         self._chat_id = chat_id
         self._dry_run = dry_run
+
     def close(self) -> None:
         return None
 

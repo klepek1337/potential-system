@@ -5,8 +5,9 @@ It never places, edits, or closes orders.
 
 The scanner watches `SMA 20`, `SMA 50`, `SMA 120`, and `SMA 200` and sends:
 
-1. one alert when the live H4 candle first touches an average;
-2. one resolution after that candle closes.
+1. a startup notification and the current price plus all four SMA levels;
+2. one alert when the live H4 candle first touches an average;
+3. one resolution after that candle closes.
 
 The result depends on the side from which price approached the average:
 
@@ -28,6 +29,19 @@ A touch means the current candle range contains the current SMA value:
 
 ```text
 candle.low <= current_sma <= candle.high
+```
+
+The default `0.1%` margin also counts a near-touch. In other words, the candle range only needs
+to intersect the area from `SMA - 0.1%` to `SMA + 0.1%`. Configure it in `.env`:
+
+```env
+MOVING_AVERAGE_TOUCH_MARGIN_PERCENT=0.1
+```
+
+Startup reporting is enabled by default and can be disabled independently:
+
+```env
+SEND_STARTUP_SUMMARY=false
 ```
 
 ## Setup

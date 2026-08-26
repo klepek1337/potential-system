@@ -37,8 +37,43 @@ def determine_approach_side(
     return ApproachSide.BELOW
 
 
+def calculate_latest_moving_average_levels(
+    candles: Sequence[Candle],
+) -> dict[int, float]:
+    if not candles:
+        return {}
+
+    latest_candle_index = len(candles) - 1
+    moving_average_levels: dict[int, float] = {}
+    for moving_average_period in MOVING_AVERAGE_PERIODS:
+        moving_average_value = calculate_simple_moving_average(
+            candles,
+            latest_candle_index,
+            moving_average_period,
+        )
+        if moving_average_value is not None:
+            moving_average_levels[moving_average_period] = moving_average_value
+    return moving_average_levels
+
+
+def candle_touches_moving_average(
+    candle: Candle,
+    moving_average_value: float,
+    touch_margin_ratio: float,
+) -> bool:
+    touch_margin_value = moving_average_value * touch_margin_ratio
+    lower_touch_boundary = moving_average_value - touch_margin_value
+    upper_touch_boundary = moving_average_value + touch_margin_value
+    return (
+        candle.lowest_price <= upper_touch_boundary
+        and candle.highest_price >= lower_touch_boundary
+    )
+
+
 def detect_tests_on_latest_candle(
-    instrument_id: str, candles: Sequence[Candle]
+    instrument_id: str,
+    candles: Sequence[Candle],
+    touch_margin_ratio: float,
 ) -> list[MovingAverageTest]:
     if not candles:
         return []
@@ -59,10 +94,10 @@ def detect_tests_on_latest_candle(
         if moving_average_value is None or approach_side is None:
             continue
 
-        candle_touched_moving_average = (
-            current_candle.lowest_price
-            <= moving_average_value
-            <= current_candle.highest_price
+        candle_touched_moving_average = candle_touches_moving_average(
+            candle=current_candle,
+            moving_average_value=moving_average_value,
+            touch_margin_ratio=touch_margin_ratio,
         )
         if not candle_touched_moving_average:
             continue
@@ -94,4 +129,3 @@ def resolve_test_outcome(
     if closing_price <= final_moving_average_value:
         return TestOutcome.RESISTANCE_REJECTED
     return TestOutcome.RESISTANCE_RECLAIMED
-
