@@ -9,7 +9,12 @@ DEFAULT_OKX_API_BASE_URL = "https://www.okx.com"
 DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_DISPLAY_TIMEZONE = "Europe/Luxembourg"
 DEFAULT_STATE_DATABASE_PATH = "data/ma_alerts.sqlite3"
+DEFAULT_MOVING_AVERAGE_TOUCH_MARGIN_PERCENT = 0.1
+DEFAULT_SEND_STARTUP_SUMMARY = True
 MINIMUM_POLL_INTERVAL_SECONDS = 10
+MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
+MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
+PERCENT_TO_RATIO_DIVISOR = 100.0
 
 
 def parse_boolean(environment_value: str | None, default_value: bool) -> bool:
@@ -35,6 +40,8 @@ class Settings:
     poll_interval_seconds: int
     display_timezone: str
     state_database_path: Path
+    moving_average_touch_margin_ratio: float
+    send_startup_summary: bool
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -53,6 +60,19 @@ class Settings:
             state_database_path=Path(
                 os.getenv("STATE_DATABASE_PATH", DEFAULT_STATE_DATABASE_PATH)
             ),
+            moving_average_touch_margin_ratio=(
+                float(
+                    os.getenv(
+                        "MOVING_AVERAGE_TOUCH_MARGIN_PERCENT",
+                        str(DEFAULT_MOVING_AVERAGE_TOUCH_MARGIN_PERCENT),
+                    )
+                )
+                / PERCENT_TO_RATIO_DIVISOR
+            ),
+            send_startup_summary=parse_boolean(
+                os.getenv("SEND_STARTUP_SUMMARY"),
+                default_value=DEFAULT_SEND_STARTUP_SUMMARY,
+            ),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
@@ -66,6 +86,14 @@ class Settings:
         if self.poll_interval_seconds < MINIMUM_POLL_INTERVAL_SECONDS:
             raise ValueError(
                 f"POLL_INTERVAL_SECONDS must be at least {MINIMUM_POLL_INTERVAL_SECONDS}"
+            )
+        touch_margin_percent = (
+            self.moving_average_touch_margin_ratio * PERCENT_TO_RATIO_DIVISOR
+        )
+        if not MINIMUM_TOUCH_MARGIN_PERCENT <= touch_margin_percent <= MAXIMUM_TOUCH_MARGIN_PERCENT:
+            raise ValueError(
+                "MOVING_AVERAGE_TOUCH_MARGIN_PERCENT must be between "
+                f"{MINIMUM_TOUCH_MARGIN_PERCENT} and {MAXIMUM_TOUCH_MARGIN_PERCENT}"
             )
         if not self.dry_run and not self.telegram_bot_token:
             raise ValueError("TELEGRAM_BOT_TOKEN is required when DRY_RUN=false")

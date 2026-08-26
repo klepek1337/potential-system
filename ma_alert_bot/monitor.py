@@ -2,6 +2,7 @@ import logging
 from collections.abc import Sequence
 
 from ma_alert_bot.analysis import (
+    calculate_latest_moving_average_levels,
     calculate_simple_moving_average,
     detect_tests_on_latest_candle,
     resolve_test_outcome,
@@ -9,6 +10,8 @@ from ma_alert_bot.analysis import (
 from ma_alert_bot.models import Candle
 from ma_alert_bot.notifications import (
     TelegramNotifier,
+    build_current_levels_message,
+    build_program_started_message,
     build_test_resolved_message,
     build_test_started_message,
 )
@@ -26,23 +29,59 @@ class MovingAverageMonitor:
         state_store: AlertStateStore,
         notifier: TelegramNotifier,
         timezone_name: str,
+        touch_margin_ratio: float,
     ) -> None:
         self._market_data_client = market_data_client
         self._state_store = state_store
         self._notifier = notifier
         self._timezone_name = timezone_name
+        self._touch_margin_ratio = touch_margin_ratio
 
-    def scan_instrument(self, instrument_id: str) -> None:
+    def send_program_started(self, instrument_ids: tuple[str, ...]) -> None:
+        self._notifier.send(
+            build_program_started_message(
+                instrument_ids=instrument_ids,
+                touch_margin_ratio=self._touch_margin_ratio,
+            )
+        )
+
+    def scan_instrument(
+        self,
+        instrument_id: str,
+        include_level_summary: bool = False,
+    ) -> None:
         candles = self._market_data_client.get_four_hour_candles(instrument_id)
+        if include_level_summary:
+            self._send_current_level_summary(instrument_id, candles)
         self._resolve_finished_tests(instrument_id, candles)
         self._register_current_tests(instrument_id, candles)
+
+    def _send_current_level_summary(
+        self,
+        instrument_id: str,
+        candles: Sequence[Candle],
+    ) -> None:
+        if not candles:
+            return
+        moving_average_levels = calculate_latest_moving_average_levels(candles)
+        self._notifier.send(
+            build_current_levels_message(
+                instrument_id=instrument_id,
+                current_price=candles[-1].closing_price,
+                moving_average_levels=moving_average_levels,
+            )
+        )
 
     def _register_current_tests(
         self,
         instrument_id: str,
         candles: Sequence[Candle],
     ) -> None:
-        for moving_average_test in detect_tests_on_latest_candle(instrument_id, candles):
+        for moving_average_test in detect_tests_on_latest_candle(
+            instrument_id,
+            candles,
+            touch_margin_ratio=self._touch_margin_ratio,
+        ):
             if not self._state_store.register_test_if_new(moving_average_test):
                 continue
 
@@ -108,4 +147,3 @@ class MovingAverageMonitor:
                 )
             )
             self._state_store.mark_test_resolved(unresolved_test, outcome.value)
-

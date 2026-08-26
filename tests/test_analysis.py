@@ -2,6 +2,7 @@ import unittest
 
 from ma_alert_bot.analysis import (
     calculate_simple_moving_average,
+    candle_touches_moving_average,
     detect_tests_on_latest_candle,
     resolve_test_outcome,
 )
@@ -9,6 +10,7 @@ from ma_alert_bot.models import ApproachSide, Candle, TestOutcome
 
 
 FOUR_HOURS_IN_MILLISECONDS = 4 * 60 * 60 * 1000
+DEFAULT_TEST_TOUCH_MARGIN_RATIO = 0.001
 
 
 def build_candles(
@@ -73,7 +75,11 @@ class SimpleMovingAverageTests(unittest.TestCase):
             latest_is_confirmed=False,
         )
 
-        detected_tests = detect_tests_on_latest_candle("BTC-USDT-SWAP", candles)
+        detected_tests = detect_tests_on_latest_candle(
+            "BTC-USDT-SWAP",
+            candles,
+            touch_margin_ratio=DEFAULT_TEST_TOUCH_MARGIN_RATIO,
+        )
 
         detected_periods = {
             moving_average_test.moving_average_period
@@ -89,9 +95,49 @@ class SimpleMovingAverageTests(unittest.TestCase):
             latest_is_confirmed=True,
         )
 
-        detected_tests = detect_tests_on_latest_candle("BTC-USDT-SWAP", candles)
+        detected_tests = detect_tests_on_latest_candle(
+            "BTC-USDT-SWAP",
+            candles,
+            touch_margin_ratio=DEFAULT_TEST_TOUCH_MARGIN_RATIO,
+        )
 
         self.assertEqual(detected_tests, [])
+
+    def test_detects_price_range_within_point_one_percent_margin(self) -> None:
+        candle = Candle(
+            opening_timestamp_ms=0,
+            opening_price=100.2,
+            highest_price=100.2,
+            lowest_price=100.05,
+            closing_price=100.15,
+            is_confirmed=False,
+        )
+
+        touched = candle_touches_moving_average(
+            candle,
+            moving_average_value=100.0,
+            touch_margin_ratio=DEFAULT_TEST_TOUCH_MARGIN_RATIO,
+        )
+
+        self.assertTrue(touched)
+
+    def test_rejects_price_range_outside_point_one_percent_margin(self) -> None:
+        candle = Candle(
+            opening_timestamp_ms=0,
+            opening_price=100.2,
+            highest_price=100.2,
+            lowest_price=100.11,
+            closing_price=100.15,
+            is_confirmed=False,
+        )
+
+        touched = candle_touches_moving_average(
+            candle,
+            moving_average_value=100.0,
+            touch_margin_ratio=DEFAULT_TEST_TOUCH_MARGIN_RATIO,
+        )
+
+        self.assertFalse(touched)
 
 
 class TestResolutionTests(unittest.TestCase):
@@ -114,4 +160,3 @@ class TestResolutionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

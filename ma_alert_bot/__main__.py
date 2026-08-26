@@ -28,10 +28,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def scan_all_instruments(
     monitor: MovingAverageMonitor,
     instrument_ids: tuple[str, ...],
+    include_level_summary: bool,
 ) -> None:
     for instrument_id in instrument_ids:
         try:
-            monitor.scan_instrument(instrument_id)
+            monitor.scan_instrument(
+                instrument_id,
+                include_level_summary=include_level_summary,
+            )
         except Exception:
             logging.exception("Failed to scan %s", instrument_id)
 
@@ -53,15 +57,31 @@ def main() -> None:
         state_store=state_store,
         notifier=notifier,
         timezone_name=settings.display_timezone,
+        touch_margin_ratio=settings.moving_average_touch_margin_ratio,
     )
 
     try:
+        if settings.send_startup_summary:
+            monitor.send_program_started(settings.instrument_ids)
+
         if arguments.once:
-            scan_all_instruments(monitor, settings.instrument_ids)
+            scan_all_instruments(
+                monitor,
+                settings.instrument_ids,
+                include_level_summary=settings.send_startup_summary,
+            )
             return
 
+        is_first_scan = True
         while True:
-            scan_all_instruments(monitor, settings.instrument_ids)
+            scan_all_instruments(
+                monitor,
+                settings.instrument_ids,
+                include_level_summary=(
+                    is_first_scan and settings.send_startup_summary
+                ),
+            )
+            is_first_scan = False
             time.sleep(settings.poll_interval_seconds)
     except KeyboardInterrupt:
         logging.info("Stopping monitor")
@@ -76,4 +96,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
