@@ -1,0 +1,8 @@
+services:
+  ma-alert-bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+
