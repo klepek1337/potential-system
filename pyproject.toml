@@ -3,7 +3,7 @@ name = "okx-ma-telegram-alerts"
 version = "0.1.0"
 description = "OKX H4 moving-average tests sent to Telegram"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["openai>=2.0.0,<3.0.0"]
 
 [tool.ruff]
 line-length = 100

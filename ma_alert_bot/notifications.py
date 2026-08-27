@@ -10,6 +10,7 @@ TELEGRAM_REQUEST_TIMEOUT_SECONDS = 10.0
 HTTP_USER_AGENT = "okx-ma-telegram-alerts/0.1"
 FOUR_HOUR_CANDLE_DURATION = timedelta(hours=4)
 RATIO_TO_PERCENT_MULTIPLIER = 100.0
+TELEGRAM_MAX_MESSAGE_LENGTH = 4096
 
 OUTCOME_HEADINGS = {
     TestOutcome.SUPPORT_DEFENDED: "🟢 SMA obroniona jako wsparcie",
@@ -160,3 +161,30 @@ class TelegramNotifier:
         )
         if response_payload.get("ok") is not True:
             raise RuntimeError(f"Telegram API rejected the message: {response_payload!r}")
+
+    def send_long(self, message: str) -> None:
+        for message_part in split_telegram_message(message):
+            self.send(message_part)
+
+
+def split_telegram_message(
+    message: str,
+    maximum_length: int = TELEGRAM_MAX_MESSAGE_LENGTH,
+) -> list[str]:
+    if len(message) <= maximum_length:
+        return [message]
+
+    message_parts: list[str] = []
+    remaining_message = message
+    while remaining_message:
+        if len(remaining_message) <= maximum_length:
+            message_parts.append(remaining_message)
+            break
+        split_position = remaining_message.rfind("\n\n", 0, maximum_length + 1)
+        if split_position <= 0:
+            split_position = remaining_message.rfind("\n", 0, maximum_length + 1)
+        if split_position <= 0:
+            split_position = maximum_length
+        message_parts.append(remaining_message[:split_position].rstrip())
+        remaining_message = remaining_message[split_position:].lstrip()
+    return message_parts

@@ -17,6 +17,9 @@ Each startup and SMA-event report can also include:
 - a position-aware assessment that separates holding, not adding, a breached thesis,
   a breached stop, and a reached target.
 
+An optional OpenAI layer adds sourced internet research and a portfolio-level decision report.
+The deterministic scanner remains responsible for immediate SMA, stop and liquidation warnings.
+
 The result depends on the side from which price approached the average:
 
 | Approach | H4 close | Result |
@@ -117,6 +120,78 @@ reliably contain the user's complete thesis, so `okx_with_manual_override` is th
 automatic mode. Active exchange stop orders remain separate from position data; configure the
 intended stop manually until explicit read-only stop-order reconciliation is implemented.
 
+## Optional AI research
+
+The AI layer uses the official OpenAI Python SDK and the Responses API with hosted web search.
+It receives prepared market and position snapshots, but never receives the OKX API credentials.
+No order, margin, transfer or stop-modification tool is exposed to the model.
+
+Enable it only after creating a separate OpenAI API key:
+
+```env
+AI_ANALYSIS_ENABLED=true
+AI_DAILY_REPORT_LOCAL_TIME=08:05
+AI_EVENT_REPORTS_ENABLED=true
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.5
+OPENAI_REASONING_EFFORT=high
+```
+
+The OpenAI API is billed separately from a ChatGPT subscription. Keep the API key only in
+`.env`; never commit it or send it to Telegram.
+
+There are two report paths:
+
+1. `daily` performs one portfolio-wide web research run. It covers the BTC/ETH relationship,
+   dominance and market breadth, derivatives, ETF flows, on-chain evidence, macro liquidity,
+   rates, inflation, the dollar, yields and material news.
+2. `market_event` runs once per instrument scan when one or more SMA tests start or resolve. It
+   compares the new event with the latest daily thesis rather than treating an SMA cross as a
+   self-contained trading signal.
+
+The model must return a strict JSON schema. The application then formats that result for
+Telegram and splits messages at Telegram's length limit. Allowed position decisions are:
+
+- `HOLD`
+- `HOLD_DO_NOT_ADD`
+- `REDUCE_RISK`
+- `EXIT_THESIS_INVALIDATED`
+- `TARGET_REACHED_REVIEW_PROFIT`
+- `NO_EDGE`
+- `INSUFFICIENT_DATA`
+
+Reports and previous theses are stored in SQLite. A daily report therefore states what changed
+instead of recreating an unrelated opinion each day. Web facts require a source URL; missing or
+conflicting data must be reported explicitly.
+
+The deterministic risk layer is deliberately independent. A failed or slow OpenAI request does
+not suppress the original SMA alert. Event research is sent as a follow-up Telegram message.
+OpenAI work runs in a bounded single-worker queue, so web research does not pause the OKX polling
+loop and multiple events cannot launch unbounded parallel API calls.
+
+Test one complete AI report without waiting for the configured daily time:
+
+```bash
+python -m ma_alert_bot --ai-report-now
+```
+
+Position risk is checked on every polling cycle, independently from AI:
+
+```env
+STOP_WARNING_DISTANCE_PERCENT=1.0
+LIQUIDATION_WARNING_DISTANCE_PERCENT=5.0
+```
+
+The scanner sends a transition alert when price first enters one of these ranges or breaches the
+configured stop. SQLite suppresses repeats while the same condition remains active and rearms
+the alert after price leaves the risk range.
+
+Official references:
+
+- [OpenAI Responses web search](https://developers.openai.com/api/docs/guides/tools-web-search)
+- [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [OKX API v5](https://www.okx.com/docs-v5/en/)
+
 ## Setup
 
 Requirements: Python 3.11 or newer.
@@ -161,6 +236,7 @@ Never commit `.env` or paste the bot token into source code.
 
 ```bash
 cp .env.example .env
+cp position_plans.example.json position_plans.json
 docker compose up --build -d
 docker compose logs -f
 ```
@@ -181,4 +257,4 @@ python -m unittest discover -v
 - It monitors only simple moving averages and H4 candles.
 - It does not treat an intrabar touch as confirmation.
 - It does not aggregate prices from other exchanges.
-- It does not fetch news or macro context; the decision report is structural and position-aware.
+- News and macro context require `AI_ANALYSIS_ENABLED=true` and a working OpenAI API key.

@@ -3,6 +3,7 @@ import unittest
 from ma_alert_bot.notifications import (
     build_current_levels_message,
     build_program_started_message,
+    split_telegram_message,
 )
 
 
@@ -31,6 +32,14 @@ class StartupNotificationTests(unittest.TestCase):
         self.assertIn("SMA 200: 104", message)
         self.assertIn("nad", message)
         self.assertIn("pod", message)
+
+    def test_long_message_is_split_without_losing_content(self) -> None:
+        message = "pierwszy akapit\n\ndrugi akapit\n\ntrzeci akapit"
+
+        message_parts = split_telegram_message(message, maximum_length=20)
+
+        self.assertGreater(len(message_parts), 1)
+        self.assertEqual("".join(message_parts).replace("\n", ""), message.replace("\n", ""))
 
 
 if __name__ == "__main__":
