@@ -71,6 +71,25 @@ class DecisionReportTests(unittest.TestCase):
 
         self.assertIn("CEL OSIĄGNIĘTY", report)
 
+    def test_open_candle_wick_does_not_invalidate_h4_thesis(self) -> None:
+        position = PositionSnapshot(
+            instrument_id="EXAMPLE-USDT-SWAP",
+            direction=PositionDirection.LONG,
+            entry_price=100.0,
+            thesis_support_price=95.0,
+        )
+
+        report = build_decision_report(
+            instrument_id=position.instrument_id,
+            current_price=94.0,
+            latest_confirmed_price=97.0,
+            moving_average_levels={20: 96.0},
+            position=position,
+        )
+
+        self.assertIn("TEZA JESZCZE AKTYWNA", report)
+        self.assertNotIn("RUCH ZDYSKWALIFIKOWANY", report)
+
 
 if __name__ == "__main__":
     unittest.main()

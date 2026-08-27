@@ -90,6 +90,7 @@ class MovingAverageMonitor:
                 instrument_id,
                 candles[-1].closing_price,
                 moving_average_levels,
+                candles,
             )
         self._notifier.send(message)
 
@@ -120,6 +121,7 @@ class MovingAverageMonitor:
                     instrument_id,
                     candles[-1].closing_price,
                     calculate_latest_moving_average_levels(candles),
+                    candles,
                 )
             self._notifier.send(message)
 
@@ -178,6 +180,7 @@ class MovingAverageMonitor:
                     instrument_id,
                     candles[-1].closing_price,
                     calculate_latest_moving_average_levels(candles),
+                    candles,
                 )
             self._notifier.send(message)
             self._state_store.mark_test_resolved(unresolved_test, outcome.value)
@@ -187,12 +190,22 @@ class MovingAverageMonitor:
         instrument_id: str,
         current_price: float,
         moving_average_levels: dict[int, float],
+        candles: Sequence[Candle],
     ) -> str:
+        latest_confirmed_price = next(
+            (
+                candle.closing_price
+                for candle in reversed(candles)
+                if candle.is_confirmed
+            ),
+            current_price,
+        )
         return build_decision_report(
             instrument_id=instrument_id,
             current_price=current_price,
             moving_average_levels=moving_average_levels,
             position=self._position_tracker.get_position(instrument_id),
+            latest_confirmed_price=latest_confirmed_price,
         )
 
     def _get_due_daily_report_date(self, instrument_id: str) -> str | None:

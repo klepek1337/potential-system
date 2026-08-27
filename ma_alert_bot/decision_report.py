@@ -6,6 +6,10 @@ from ma_alert_bot.positions import PositionDirection, PositionSnapshot
 RATIO_TO_PERCENT_MULTIPLIER = 100.0
 
 
+def _format_price(price: float) -> str:
+    return f"{price:.10f}".rstrip("0").rstrip(".")
+
+
 def _nearest_level_below(
     current_price: float,
     moving_average_levels: Mapping[int, float],
@@ -34,7 +38,7 @@ def _format_level(level: tuple[int, float] | None) -> str:
     if level is None:
         return "brak kolejnej SMA w obserwowanym zestawie"
     period, value = level
-    return f"SMA {period} ({value:.10f})".rstrip("0").rstrip(".")
+    return f"SMA {period} ({_format_price(value)})"
 
 
 def build_two_sided_scenario_lines(
@@ -57,22 +61,22 @@ def build_two_sided_scenario_lines(
     )
 
     long_defense = (
-        f"utrzymanie {support_price:.10f}".rstrip("0").rstrip(".")
+        f"utrzymanie {_format_price(support_price)}"
         if support_price is not None
         else "brak zdefiniowanego wsparcia"
     )
     long_confirmation = (
-        f"zamknięcie H4 nad {resistance_price:.10f}".rstrip("0").rstrip(".")
+        f"zamknięcie H4 nad {_format_price(resistance_price)}"
         if resistance_price is not None
         else "utrzymanie ceny nad całym ribbonem SMA"
     )
     short_confirmation = (
-        f"zamknięcie H4 pod {support_price:.10f}".rstrip("0").rstrip(".")
+        f"zamknięcie H4 pod {_format_price(support_price)}"
         if support_price is not None
         else "brak potwierdzenia w obserwowanym zestawie SMA"
     )
     short_invalidation = (
-        f"zamknięcie H4 nad {resistance_price:.10f}".rstrip("0").rstrip(".")
+        f"zamknięcie H4 nad {_format_price(resistance_price)}"
         if resistance_price is not None
         else "utrzymanie ceny nad całym ribbonem SMA"
     )
@@ -111,6 +115,7 @@ def _distance_percent(current_price: float, reference_price: float) -> float:
 
 def build_position_assessment_lines(
     current_price: float,
+    latest_confirmed_price: float,
     position: PositionSnapshot | None,
 ) -> list[str]:
     if position is None:
@@ -140,7 +145,7 @@ def build_position_assessment_lines(
         )
         thesis_level_breached = (
             position.thesis_support_price is not None
-            and current_price < position.thesis_support_price
+            and latest_confirmed_price < position.thesis_support_price
         )
     else:
         stop_breached = (
@@ -153,7 +158,7 @@ def build_position_assessment_lines(
         )
         thesis_level_breached = (
             position.thesis_resistance_price is not None
-            and current_price > position.thesis_resistance_price
+            and latest_confirmed_price > position.thesis_resistance_price
         )
 
     if stop_breached:
@@ -169,22 +174,18 @@ def build_position_assessment_lines(
 
     lines = [
         f"📌 Twoja pozycja: {position.direction.value.upper()} "
-        f"od {position.entry_price:.10f}".rstrip("0").rstrip("."),
+        f"od {_format_price(position.entry_price)}",
         f"Wynik od wejścia: {signed_position_result:+.2f}%.",
         f"Decyzja: {verdict}",
     ]
     if position.stop_loss_price is not None:
-        lines.append(f"Stop: {position.stop_loss_price:.10f}".rstrip("0").rstrip("."))
+        lines.append(f"Stop: {_format_price(position.stop_loss_price)}")
     else:
         lines.append("Stop: brak danych — raport nie zakłada ukrytego stopu.")
     if position.target_price is not None:
-        lines.append(
-            f"Cel: {position.target_price:.10f}".rstrip("0").rstrip(".")
-        )
+        lines.append(f"Cel: {_format_price(position.target_price)}")
     if position.liquidation_price is not None:
-        lines.append(
-            f"Likwidacja OKX: {position.liquidation_price:.10f}".rstrip("0").rstrip(".")
-        )
+        lines.append(f"Likwidacja OKX: {_format_price(position.liquidation_price)}")
     if position.thesis:
         lines.append(f"Teza: {position.thesis}")
     return lines
@@ -195,7 +196,9 @@ def build_decision_report(
     current_price: float,
     moving_average_levels: Mapping[int, float],
     position: PositionSnapshot | None,
+    latest_confirmed_price: float | None = None,
 ) -> str:
+    confirmed_price = latest_confirmed_price or current_price
     return "\n".join(
         [f"🧭 Raport decyzyjny — {instrument_id}"]
         + build_two_sided_scenario_lines(
@@ -205,6 +208,7 @@ def build_decision_report(
         )
         + build_position_assessment_lines(
             current_price=current_price,
+            latest_confirmed_price=confirmed_price,
             position=position,
         )
     )
