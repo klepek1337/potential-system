@@ -41,6 +41,15 @@ class AlertStateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS daily_decision_reports (
+                    instrument_id TEXT NOT NULL,
+                    local_date TEXT NOT NULL,
+                    PRIMARY KEY (instrument_id, local_date)
+                )
+                """
+            )
 
     def register_test_if_new(self, moving_average_test: MovingAverageTest) -> bool:
         with self._connect() as connection:
@@ -114,3 +123,24 @@ class AlertStateStore:
                 ),
             )
 
+    def was_daily_report_sent(self, instrument_id: str, local_date: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT 1
+                FROM daily_decision_reports
+                WHERE instrument_id = ? AND local_date = ?
+                """,
+                (instrument_id, local_date),
+            ).fetchone()
+        return row is not None
+
+    def mark_daily_report_sent(self, instrument_id: str, local_date: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO daily_decision_reports (instrument_id, local_date)
+                VALUES (?, ?)
+                """,
+                (instrument_id, local_date),
+            )

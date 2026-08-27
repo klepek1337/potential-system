@@ -1,0 +1,15 @@
+{
+  "positions": [
+    {
+      "instrument_id": "EXAMPLE-USDT-SWAP",
+      "direction": "long",
+      "entry_price": 100,
+      "position_size": 1,
+      "stop_loss_price": 95,
+      "target_price": 115,
+      "thesis_support_price": 97,
+      "thesis_resistance_price": 108,
+      "thesis": "Przykład: pozycja pozostaje aktywna do utraty poziomu tezy."
+    }
+  ]
+}

@@ -9,6 +9,14 @@ The scanner watches `SMA 20`, `SMA 50`, `SMA 120`, and `SMA 200` and sends:
 2. one alert when the live H4 candle first touches an average;
 3. one resolution after that candle closes.
 
+Each startup and SMA-event report can also include:
+
+- a long scenario with confirmation and invalidation levels;
+- a short scenario with confirmation and invalidation levels;
+- a neutral structural state;
+- a position-aware assessment that separates holding, not adding, a breached thesis,
+  a breached stop, and a reached target.
+
 The result depends on the side from which price approached the average:
 
 | Approach | H4 close | Result |
@@ -43,6 +51,71 @@ Startup reporting is enabled by default and can be disabled independently:
 ```env
 SEND_STARTUP_SUMMARY=false
 ```
+
+Decision context is also enabled by default:
+
+```env
+SEND_DECISION_REPORTS=true
+DAILY_DECISION_REPORT_LOCAL_TIME=08:00
+```
+
+The daily time is interpreted in `DISPLAY_TIMEZONE`. Leave it empty to disable the scheduled
+daily report while retaining startup and SMA-event decision context. SQLite records each local
+date and instrument, so a continuously running scanner sends at most one daily copy per coin.
+
+## Position-aware reports
+
+The safe default is a manual position plan. Copy the example and keep the real file outside Git:
+
+```bash
+cp position_plans.example.json position_plans.json
+```
+
+Then configure:
+
+```env
+POSITION_SOURCE=manual
+POSITION_PLANS_PATH=position_plans.json
+```
+
+`direction` and `entry_price` are required for a manual open position. Stop, target,
+thesis support/resistance and the text thesis are optional. If the file does not exist or
+does not contain the scanned instrument, the report still presents both market scenarios but
+does not invent a personal position.
+
+The report is intentionally not a one-sided signal. It never changes a position and does not
+issue a hidden stop. Its deterministic position verdicts mean:
+
+| Verdict | Meaning |
+|---|---|
+| `TRZYMAJ WG PLANU` | Price has not breached the configured thesis or stop |
+| `NIE DOKŁADAJ DO STRATY` | Thesis is still active, but price is adverse versus entry |
+| `RUCH ZDYSKWALIFIKOWANY` | Configured thesis support/resistance was breached |
+| `STOP NARUSZONY` | Current price crossed the configured stop |
+| `CEL OSIĄGNIĘTY` | Current price reached the configured target |
+
+### Optional automatic OKX position detection
+
+Create an OKX API key with **Read** permission only. Do not grant Trade or Withdraw permissions.
+Then choose one mode:
+
+```env
+# Exchange entry, direction, size, leverage, liquidation price and unrealized PnL.
+POSITION_SOURCE=okx_read_only
+
+# Same live OKX fields, with stop/target/thesis taken from position_plans.json.
+POSITION_SOURCE=okx_with_manual_override
+
+OKX_API_KEY=
+OKX_API_SECRET=
+OKX_API_PASSPHRASE=
+```
+
+The account client contains only the authenticated `GET /api/v5/account/positions` operation.
+There is no code path for placing, editing or cancelling an order. OKX position data does not
+reliably contain the user's complete thesis, so `okx_with_manual_override` is the recommended
+automatic mode. Active exchange stop orders remain separate from position data; configure the
+intended stop manually until explicit read-only stop-order reconciliation is implemented.
 
 ## Setup
 
@@ -104,7 +177,8 @@ python -m unittest discover -v
 ## Deliberate first-version limits
 
 - Instruments are explicitly configured to prevent alert spam.
-- The program uses public OKX endpoints and requires no OKX API key.
+- Market scanning uses public OKX endpoints. Private position access is optional and read-only.
 - It monitors only simple moving averages and H4 candles.
 - It does not treat an intrabar touch as confirmation.
 - It does not aggregate prices from other exchanges.
+- It does not fetch news or macro context; the decision report is structural and position-aware.
