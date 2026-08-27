@@ -17,6 +17,14 @@ DEFAULT_SEND_DECISION_REPORTS = True
 DEFAULT_POSITION_SOURCE = PositionSource.MANUAL
 DEFAULT_POSITION_PLANS_PATH = "position_plans.json"
 DEFAULT_DAILY_DECISION_REPORT_LOCAL_TIME = "08:00"
+DEFAULT_AI_ANALYSIS_ENABLED = False
+DEFAULT_AI_EVENT_REPORTS_ENABLED = True
+DEFAULT_AI_DAILY_REPORT_LOCAL_TIME = "08:05"
+DEFAULT_OPENAI_MODEL = "gpt-5.5"
+DEFAULT_OPENAI_REASONING_EFFORT = "high"
+DEFAULT_STOP_WARNING_DISTANCE_PERCENT = 1.0
+DEFAULT_LIQUIDATION_WARNING_DISTANCE_PERCENT = 5.0
+ALLOWED_OPENAI_REASONING_EFFORTS = {"low", "medium", "high", "xhigh"}
 MINIMUM_POLL_INTERVAL_SECONDS = 10
 MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
 MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
@@ -39,16 +47,20 @@ def parse_instrument_ids(environment_value: str | None) -> tuple[str, ...]:
     )
 
 
-def parse_local_time(environment_value: str | None) -> time | None:
+def parse_local_time(
+    environment_value: str | None,
+    default_time_value: str,
+    environment_name: str,
+) -> time | None:
     if environment_value is not None and not environment_value.strip():
         return None
-    time_value = environment_value or DEFAULT_DAILY_DECISION_REPORT_LOCAL_TIME
+    time_value = environment_value or default_time_value
     try:
         hour_text, minute_text = time_value.strip().split(":", maxsplit=1)
         return time(hour=int(hour_text), minute=int(minute_text))
     except (TypeError, ValueError) as error:
         raise ValueError(
-            "DAILY_DECISION_REPORT_LOCAL_TIME must use HH:MM or be empty"
+            f"{environment_name} must use HH:MM or be empty"
         ) from error
 
 
@@ -68,6 +80,14 @@ class Settings:
     okx_api_key: str | None
     okx_api_secret: str | None
     okx_api_passphrase: str | None
+    ai_analysis_enabled: bool
+    ai_event_reports_enabled: bool
+    ai_daily_report_local_time: time | None
+    openai_api_key: str | None
+    openai_model: str
+    openai_reasoning_effort: str
+    stop_warning_distance_percent: float
+    liquidation_warning_distance_percent: float
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -112,11 +132,44 @@ class Settings:
                 os.getenv("POSITION_PLANS_PATH", DEFAULT_POSITION_PLANS_PATH)
             ),
             daily_decision_report_local_time=parse_local_time(
-                os.getenv("DAILY_DECISION_REPORT_LOCAL_TIME")
+                os.getenv("DAILY_DECISION_REPORT_LOCAL_TIME"),
+                DEFAULT_DAILY_DECISION_REPORT_LOCAL_TIME,
+                "DAILY_DECISION_REPORT_LOCAL_TIME",
             ),
             okx_api_key=os.getenv("OKX_API_KEY") or None,
             okx_api_secret=os.getenv("OKX_API_SECRET") or None,
             okx_api_passphrase=os.getenv("OKX_API_PASSPHRASE") or None,
+            ai_analysis_enabled=parse_boolean(
+                os.getenv("AI_ANALYSIS_ENABLED"),
+                default_value=DEFAULT_AI_ANALYSIS_ENABLED,
+            ),
+            ai_event_reports_enabled=parse_boolean(
+                os.getenv("AI_EVENT_REPORTS_ENABLED"),
+                default_value=DEFAULT_AI_EVENT_REPORTS_ENABLED,
+            ),
+            ai_daily_report_local_time=parse_local_time(
+                os.getenv("AI_DAILY_REPORT_LOCAL_TIME"),
+                DEFAULT_AI_DAILY_REPORT_LOCAL_TIME,
+                "AI_DAILY_REPORT_LOCAL_TIME",
+            ),
+            openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+            openai_model=os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL),
+            openai_reasoning_effort=os.getenv(
+                "OPENAI_REASONING_EFFORT",
+                DEFAULT_OPENAI_REASONING_EFFORT,
+            ).lower(),
+            stop_warning_distance_percent=float(
+                os.getenv(
+                    "STOP_WARNING_DISTANCE_PERCENT",
+                    str(DEFAULT_STOP_WARNING_DISTANCE_PERCENT),
+                )
+            ),
+            liquidation_warning_distance_percent=float(
+                os.getenv(
+                    "LIQUIDATION_WARNING_DISTANCE_PERCENT",
+                    str(DEFAULT_LIQUIDATION_WARNING_DISTANCE_PERCENT),
+                )
+            ),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
@@ -158,3 +211,20 @@ class Settings:
                     "Automatic position detection requires: "
                     + ", ".join(missing_credentials)
                 )
+        if self.ai_analysis_enabled and not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY is required when AI_ANALYSIS_ENABLED=true")
+        if self.ai_analysis_enabled and self.ai_daily_report_local_time is None:
+            raise ValueError(
+                "AI_DAILY_REPORT_LOCAL_TIME cannot be empty when AI analysis is enabled"
+            )
+        if self.openai_reasoning_effort not in ALLOWED_OPENAI_REASONING_EFFORTS:
+            raise ValueError(
+                "OPENAI_REASONING_EFFORT must be one of: "
+                + ", ".join(sorted(ALLOWED_OPENAI_REASONING_EFFORTS))
+            )
+        if self.stop_warning_distance_percent <= 0:
+            raise ValueError("STOP_WARNING_DISTANCE_PERCENT must be greater than zero")
+        if self.liquidation_warning_distance_percent <= 0:
+            raise ValueError(
+                "LIQUIDATION_WARNING_DISTANCE_PERCENT must be greater than zero"
+            )

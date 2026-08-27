@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -38,6 +39,33 @@ class AlertStateStore:
                         moving_average_period,
                         candle_opening_timestamp_ms
                     )
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS active_position_risk_alerts (
+                    instrument_id TEXT NOT NULL,
+                    risk_type TEXT NOT NULL,
+                    PRIMARY KEY (instrument_id, risk_type)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ai_analysis_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_type TEXT NOT NULL,
+                    scope_key TEXT NOT NULL,
+                    created_at_utc TEXT NOT NULL,
+                    report_json TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ai_daily_reports (
+                    local_date TEXT PRIMARY KEY
                 )
                 """
             )
@@ -143,4 +171,98 @@ class AlertStateStore:
                 VALUES (?, ?)
                 """,
                 (instrument_id, local_date),
+            )
+
+    def get_latest_ai_report(
+        self,
+        report_type: str,
+        scope_key: str,
+    ) -> dict[str, object] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT report_json
+                FROM ai_analysis_reports
+                WHERE report_type = ? AND scope_key = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (report_type, scope_key),
+            ).fetchone()
+        if row is None:
+            return None
+        parsed_report = json.loads(row[0])
+        if not isinstance(parsed_report, dict):
+            raise ValueError("Stored AI report is not a JSON object")
+        return parsed_report
+
+    def save_ai_report(
+        self,
+        report_type: str,
+        scope_key: str,
+        created_at_utc: str,
+        report: dict[str, object],
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO ai_analysis_reports (
+                    report_type,
+                    scope_key,
+                    created_at_utc,
+                    report_json
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    report_type,
+                    scope_key,
+                    created_at_utc,
+                    json.dumps(report, ensure_ascii=False),
+                ),
+            )
+
+    def was_ai_daily_report_sent(self, local_date: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM ai_daily_reports WHERE local_date = ?",
+                (local_date,),
+            ).fetchone()
+        return row is not None
+
+    def mark_ai_daily_report_sent(self, local_date: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO ai_daily_reports (local_date) VALUES (?)",
+                (local_date,),
+            )
+
+    def activate_position_risk_alert_if_new(
+        self,
+        instrument_id: str,
+        risk_type: str,
+    ) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO active_position_risk_alerts (
+                    instrument_id,
+                    risk_type
+                ) VALUES (?, ?)
+                """,
+                (instrument_id, risk_type),
+            )
+        return cursor.rowcount == 1
+
+    def clear_position_risk_alert(
+        self,
+        instrument_id: str,
+        risk_type: str,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                DELETE FROM active_position_risk_alerts
+                WHERE instrument_id = ? AND risk_type = ?
+                """,
+                (instrument_id, risk_type),
             )
