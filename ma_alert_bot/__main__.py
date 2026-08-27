@@ -5,7 +5,10 @@ import time
 from ma_alert_bot.config import Settings
 from ma_alert_bot.monitor import MovingAverageMonitor
 from ma_alert_bot.notifications import TelegramNotifier
+from ma_alert_bot.okx_account import OkxReadOnlyAccountClient
 from ma_alert_bot.okx_client import OkxMarketDataClient
+from ma_alert_bot.position_tracker import PositionTracker
+from ma_alert_bot.positions import PositionSource, load_position_plans
 from ma_alert_bot.state_store import AlertStateStore
 
 
@@ -27,9 +30,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 def scan_all_instruments(
     monitor: MovingAverageMonitor,
+    position_tracker: PositionTracker,
     instrument_ids: tuple[str, ...],
     include_level_summary: bool,
 ) -> None:
+    try:
+        position_tracker.refresh()
+    except Exception:
+        logging.exception("Failed to refresh position data; using last known snapshot")
     for instrument_id in instrument_ids:
         try:
             monitor.scan_instrument(
@@ -46,6 +54,22 @@ def main() -> None:
     settings = Settings.from_environment()
 
     market_data_client = OkxMarketDataClient(settings.okx_api_base_url)
+    position_plans = load_position_plans(settings.position_plans_path)
+    okx_account_client = None
+    if settings.position_source is not PositionSource.MANUAL:
+        okx_account_client = OkxReadOnlyAccountClient(
+            api_base_url=settings.okx_api_base_url,
+            api_key=settings.okx_api_key or "",
+            api_secret=settings.okx_api_secret or "",
+            api_passphrase=settings.okx_api_passphrase or "",
+        )
+    position_tracker = PositionTracker(
+        source=settings.position_source,
+        plans=position_plans,
+        okx_account_client=okx_account_client,
+    )
+    if settings.position_source is PositionSource.MANUAL:
+        position_tracker.refresh()
     notifier = TelegramNotifier(
         bot_token=settings.telegram_bot_token,
         chat_id=settings.telegram_chat_id,
@@ -58,6 +82,11 @@ def main() -> None:
         notifier=notifier,
         timezone_name=settings.display_timezone,
         touch_margin_ratio=settings.moving_average_touch_margin_ratio,
+        position_tracker=position_tracker,
+        send_decision_reports=settings.send_decision_reports,
+        daily_decision_report_local_time=(
+            settings.daily_decision_report_local_time
+        ),
     )
 
     try:
@@ -67,6 +96,7 @@ def main() -> None:
         if arguments.once:
             scan_all_instruments(
                 monitor,
+                position_tracker,
                 settings.instrument_ids,
                 include_level_summary=settings.send_startup_summary,
             )
@@ -76,6 +106,7 @@ def main() -> None:
         while True:
             scan_all_instruments(
                 monitor,
+                position_tracker,
                 settings.instrument_ids,
                 include_level_summary=(
                     is_first_scan and settings.send_startup_summary

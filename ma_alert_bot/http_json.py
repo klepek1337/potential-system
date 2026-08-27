@@ -16,13 +16,19 @@ def get_json(
     query_parameters: Mapping[str, str],
     timeout_seconds: float,
     user_agent: str,
+    additional_headers: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     encoded_query = urlencode(query_parameters)
-    request_url = f"{base_url.rstrip('/')}{path}?{encoded_query}"
+    request_url = f"{base_url.rstrip('/')}{path}"
+    if encoded_query:
+        request_url = f"{request_url}?{encoded_query}"
+    request_headers = {"User-Agent": user_agent}
+    if additional_headers is not None:
+        request_headers.update(additional_headers)
     request = Request(
         request_url,
         method=HTTP_GET_METHOD,
-        headers={"User-Agent": user_agent},
+        headers=request_headers,
     )
     return execute_json_request(request, timeout_seconds)
 
@@ -55,4 +61,3 @@ def execute_json_request(request: Request, timeout_seconds: float) -> dict[str, 
     if not isinstance(parsed_response, dict):
         raise ValueError("Expected a JSON object response")
     return parsed_response
-
