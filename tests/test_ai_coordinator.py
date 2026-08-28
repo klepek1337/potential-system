@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ma_alert_bot.ai_analysis import AiReportType, OkxDerivativeMetrics
 from ma_alert_bot.ai_coordinator import AiReportCoordinator
+from ma_alert_bot.decision_state import CoreAction, PositionPhase
 from ma_alert_bot.models import Candle
 from ma_alert_bot.state_store import AlertStateStore
 from tests.test_ai_analysis import build_valid_report
@@ -97,6 +98,12 @@ class AiCoordinatorTests(unittest.TestCase):
             research_client.calls[0]["report_type"],
             AiReportType.DAILY,
         )
+        snapshot = research_client.calls[0]["snapshots"][0]
+        self.assertEqual(
+            snapshot.decision_state.position_phase,
+            PositionPhase.NO_POSITION,
+        )
+        self.assertEqual(snapshot.decision_state.core_action, CoreAction.NO_ACTION)
         self.assertEqual(len(notifier.messages), 1)
 
     def test_event_report_receives_market_event(self) -> None:

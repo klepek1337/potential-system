@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Any
 
+from ma_alert_bot.decision_state import DecisionState
 from ma_alert_bot.positions import PositionSnapshot
 
 
@@ -45,6 +46,7 @@ class InstrumentMarketSnapshot:
     h4_change_percent: float | None
     twenty_four_hour_change_percent: float | None
     moving_average_levels: dict[str, float]
+    decision_state: DecisionState
     derivative_metrics: OkxDerivativeMetrics
     position: PositionSnapshot | None
 
@@ -142,8 +144,13 @@ Nie zakładaj altseason wyłącznie dlatego, że płynność lub ceny rosną.
 
 Dla każdej pozycji oceń rzeczywisty stosunek pozostałego ryzyka do potencjału. Rozdziel
 HOLD od dokładania ekspozycji. Dobra pozycja może zasługiwać na HOLD, ale jednocześnie
-HOLD_DO_NOT_ADD. Stop i ostrzeżenia o likwidacji z aplikacji są nadrzędne wobec Twojej opinii.
-Unieważnienie tezy H4 wymaga potwierdzonego zamknięcia, o ile wejście nie mówi inaczej.
+HOLD_DO_NOT_ADD. Snapshot zawiera deterministyczny decision_state. Traktuj SMA 20 jako
+warstwę momentum i dokładania, a SMA 50 jako zdrowie struktury H4. Zamknięcie H4 pod SMA 20
+dla longa albo nad SMA 20 dla shorta samo w sobie nie potwierdza odwrócenia trendu. Wymaga
+nieudanego reclaimu i utraty SMA 50. Nie nadpisuj pól core_action ani adding_action własną
+interpretacją bez jawnego wskazania konfliktu danych. Stop i ostrzeżenia o likwidacji z
+aplikacji są nadrzędne wobec Twojej opinii. Unieważnienie tezy H4 wymaga potwierdzonego
+zamknięcia, o ile skonfigurowany twardy stop nie został naruszony wcześniej.
 
 Porównaj wynik z poprzednim raportem, jeśli został przekazany. W what_changed wpisz tylko
 materialne zmiany. Jeśli brakuje danych albo źródła są sprzeczne, wskaż to jawnie.

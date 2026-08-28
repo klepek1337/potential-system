@@ -15,6 +15,18 @@ class PositionSource(StrEnum):
     OKX_WITH_MANUAL_OVERRIDE = "okx_with_manual_override"
 
 
+class PositionRole(StrEnum):
+    CORE = "core"
+    TACTICAL = "tactical"
+
+
+class HoldingHorizon(StrEnum):
+    TACTICAL_H4 = "tactical_h4"
+    SWING_D1 = "swing_d1"
+    POSITION_W1 = "position_w1"
+    CYCLE = "cycle"
+
+
 @dataclass(frozen=True)
 class PositionPlan:
     instrument_id: str
@@ -26,6 +38,8 @@ class PositionPlan:
     thesis_support_price: float | None = None
     thesis_resistance_price: float | None = None
     thesis: str | None = None
+    role: PositionRole = PositionRole.CORE
+    holding_horizon: HoldingHorizon = HoldingHorizon.SWING_D1
 
 
 @dataclass(frozen=True)
@@ -42,6 +56,8 @@ class PositionSnapshot:
     leverage: float | None = None
     liquidation_price: float | None = None
     unrealized_profit: float | None = None
+    role: PositionRole = PositionRole.CORE
+    holding_horizon: HoldingHorizon = HoldingHorizon.SWING_D1
 
 
 def _optional_positive_float(raw_value: object, field_name: str) -> float | None:
@@ -98,6 +114,21 @@ def load_position_plans(configuration_path: Path) -> dict[str, PositionPlan]:
             thesis=(str(raw_position["thesis"]).strip() or None)
             if raw_position.get("thesis") is not None
             else None,
+            role=PositionRole(
+                str(raw_position.get("role", PositionRole.CORE.value))
+                .strip()
+                .lower()
+            ),
+            holding_horizon=HoldingHorizon(
+                str(
+                    raw_position.get(
+                        "holding_horizon",
+                        HoldingHorizon.SWING_D1.value,
+                    )
+                )
+                .strip()
+                .lower()
+            ),
         )
         if instrument_id in plans:
             raise ValueError(f"Duplicate position plan for {instrument_id}")
@@ -120,6 +151,8 @@ def manual_position_from_plan(plan: PositionPlan) -> PositionSnapshot:
         thesis_support_price=plan.thesis_support_price,
         thesis_resistance_price=plan.thesis_resistance_price,
         thesis=plan.thesis,
+        role=plan.role,
+        holding_horizon=plan.holding_horizon,
     )
 
 
@@ -136,4 +169,6 @@ def apply_manual_override(
         thesis_support_price=plan.thesis_support_price,
         thesis_resistance_price=plan.thesis_resistance_price,
         thesis=plan.thesis,
+        role=plan.role,
+        holding_horizon=plan.holding_horizon,
     )
