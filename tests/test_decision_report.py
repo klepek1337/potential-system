@@ -90,6 +90,20 @@ class DecisionReportTests(unittest.TestCase):
         self.assertIn("TEZA JESZCZE AKTYWNA", report)
         self.assertNotIn("RUCH ZDYSKWALIFIKOWANY", report)
 
+    def test_bullish_report_does_not_call_sma20_loss_full_short_confirmation(self) -> None:
+        report = build_decision_report(
+            instrument_id="EXAMPLE-USDT-SWAP",
+            current_price=105.0,
+            latest_confirmed_price=104.0,
+            moving_average_levels={20: 100.0, 50: 95.0, 120: 90.0, 200: 80.0},
+            position=None,
+        )
+
+        self.assertIn("Ribbon: FULL_BULLISH", report)
+        self.assertIn("SHORT — sygnał wstępny", report)
+        self.assertIn("nieudany reclaim SMA 20", report)
+        self.assertIn("zamknięcie H4 pod SMA 50", report)
+
 
 if __name__ == "__main__":
     unittest.main()

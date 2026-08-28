@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 
 from ma_alert_bot.positions import (
+    HoldingHorizon,
     PositionDirection,
+    PositionRole,
     PositionSnapshot,
     apply_manual_override,
     load_position_plans,
@@ -22,6 +24,8 @@ class PositionPlanTests(unittest.TestCase):
                             {
                                 "instrument_id": "example-usdt-swap",
                                 "direction": "long",
+                                "role": "core",
+                                "holding_horizon": "position_w1",
                                 "entry_price": 100,
                                 "stop_loss_price": 95,
                             }
@@ -37,6 +41,8 @@ class PositionPlanTests(unittest.TestCase):
         self.assertEqual(plan.direction, PositionDirection.LONG)
         self.assertEqual(plan.entry_price, 100.0)
         self.assertEqual(plan.stop_loss_price, 95.0)
+        self.assertEqual(plan.role, PositionRole.CORE)
+        self.assertEqual(plan.holding_horizon, HoldingHorizon.POSITION_W1)
 
     def test_manual_plan_overrides_thesis_but_not_live_entry(self) -> None:
         live_position = PositionSnapshot(
@@ -55,6 +61,8 @@ class PositionPlanTests(unittest.TestCase):
                             {
                                 "instrument_id": "EXAMPLE-USDT-SWAP",
                                 "stop_loss_price": 95,
+                                "role": "tactical",
+                                "holding_horizon": "tactical_h4",
                                 "thesis": "H4 must defend support",
                             }
                         ]
@@ -70,6 +78,11 @@ class PositionPlanTests(unittest.TestCase):
         self.assertEqual(merged_position.leverage, 2.0)
         self.assertEqual(merged_position.stop_loss_price, 95.0)
         self.assertEqual(merged_position.thesis, "H4 must defend support")
+        self.assertEqual(merged_position.role, PositionRole.TACTICAL)
+        self.assertEqual(
+            merged_position.holding_horizon,
+            HoldingHorizon.TACTICAL_H4,
+        )
 
 
 if __name__ == "__main__":

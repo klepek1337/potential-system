@@ -1,5 +1,12 @@
 from collections.abc import Mapping
 
+from ma_alert_bot.decision_state import (
+    CoreAction,
+    DecisionState,
+    PositionPhase,
+    RibbonState,
+    build_decision_state,
+)
 from ma_alert_bot.positions import PositionDirection, PositionSnapshot
 
 
@@ -45,7 +52,49 @@ def build_two_sided_scenario_lines(
     current_price: float,
     moving_average_levels: Mapping[int, float],
     position: PositionSnapshot | None,
+    decision_state: DecisionState,
 ) -> list[str]:
+    momentum_level = decision_state.momentum_level
+    structural_level = decision_state.structural_level
+    if (
+        decision_state.ribbon_state is RibbonState.FULL_BULLISH
+        and momentum_level is not None
+        and structural_level is not None
+    ):
+        return [
+            "⚖️ Scenariusze dwustronne",
+            "LONG — obrona momentum: "
+            f"SMA 20 ({_format_price(momentum_level)}); główna obrona H4: "
+            f"SMA 50 ({_format_price(structural_level)}).",
+            "LONG — potwierdzenie: utrzymanie pełnego bullish ribbonu; "
+            "dokładanie dopiero po potwierdzonej obronie lub retestcie.",
+            "SHORT — sygnał wstępny: zamknięcie H4 pod SMA 20; "
+            "potwierdzenie: nieudany reclaim SMA 20 i zamknięcie H4 pod SMA 50.",
+            "SHORT — unieważnienie: odzyskanie SMA 20; samo naruszenie SMA 20 "
+            "nie odwraca strategicznego trendu.",
+            "NEUTRAL — utrata SMA 20 przy utrzymaniu SMA 50 oznacza korektę, "
+            "nie pełne potwierdzenie shorta.",
+        ]
+    if (
+        decision_state.ribbon_state is RibbonState.FULL_BEARISH
+        and momentum_level is not None
+        and structural_level is not None
+    ):
+        return [
+            "⚖️ Scenariusze dwustronne",
+            "SHORT — obrona momentum: "
+            f"SMA 20 ({_format_price(momentum_level)}); główna obrona H4: "
+            f"SMA 50 ({_format_price(structural_level)}).",
+            "SHORT — potwierdzenie: utrzymanie pełnego bearish ribbonu; "
+            "dokładanie dopiero po potwierdzonym odrzuceniu lub retestcie.",
+            "LONG — sygnał wstępny: zamknięcie H4 nad SMA 20; "
+            "potwierdzenie: nieudana utrata SMA 20 i zamknięcie H4 nad SMA 50.",
+            "LONG — unieważnienie: ponowna utrata SMA 20; samo naruszenie SMA 20 "
+            "nie odwraca strategicznego trendu.",
+            "NEUTRAL — odzyskanie SMA 20 przy pozostaniu pod SMA 50 oznacza "
+            "odbicie, nie pełne potwierdzenie longa.",
+        ]
+
     nearest_support = _nearest_level_below(current_price, moving_average_levels)
     nearest_resistance = _nearest_level_above(current_price, moving_average_levels)
 
@@ -117,6 +166,7 @@ def build_position_assessment_lines(
     current_price: float,
     latest_confirmed_price: float,
     position: PositionSnapshot | None,
+    decision_state: DecisionState,
 ) -> list[str]:
     if position is None:
         return [
@@ -132,43 +182,45 @@ def build_position_assessment_lines(
     )
 
     stop_breached = False
-    target_reached = False
-    thesis_level_breached = False
     if position.direction is PositionDirection.LONG:
         stop_breached = (
             position.stop_loss_price is not None
             and current_price <= position.stop_loss_price
-        )
-        target_reached = (
-            position.target_price is not None
-            and current_price >= position.target_price
-        )
-        thesis_level_breached = (
-            position.thesis_support_price is not None
-            and latest_confirmed_price < position.thesis_support_price
         )
     else:
         stop_breached = (
             position.stop_loss_price is not None
             and current_price >= position.stop_loss_price
         )
-        target_reached = (
-            position.target_price is not None
-            and current_price <= position.target_price
-        )
-        thesis_level_breached = (
-            position.thesis_resistance_price is not None
-            and latest_confirmed_price > position.thesis_resistance_price
-        )
 
     if stop_breached:
         verdict = "STOP NARUSZONY — teza pozycji wymaga natychmiastowego przeglądu."
-    elif target_reached:
+    elif decision_state.core_action is CoreAction.REVIEW_PROFIT:
         verdict = "CEL OSIĄGNIĘTY — oceń realizację zysku zgodnie z planem."
-    elif thesis_level_breached:
+    elif decision_state.core_action is CoreAction.EXIT:
         verdict = "RUCH ZDYSKWALIFIKOWANY — naruszono poziom tezy."
+    elif decision_state.core_action is CoreAction.REDUCE_RISK:
+        verdict = (
+            "STRUKTURA H4 ZAGROŻONA — SMA 50 została naruszona; "
+            "oceń redukcję ryzyka."
+        )
+    elif decision_state.position_phase is PositionPhase.EXECUTION_STRUCTURE_BROKEN:
+        verdict = (
+            "TRZYMAJ RDZEŃ, WSTRZYMAJ DOKŁADANIE — struktura wykonawcza H4 "
+            "została naruszona, ale długi horyzont wymaga osobnego przeglądu W1."
+        )
+    elif decision_state.position_phase is PositionPhase.MOMENTUM_WARNING:
+        verdict = (
+            "TRZYMAJ RDZEŃ, WSTRZYMAJ DOKŁADANIE — utracono momentum SMA 20, "
+            "ale SMA 50 nadal broni struktury H4."
+        )
     elif signed_position_result < 0:
         verdict = "TEZA JESZCZE AKTYWNA, ALE NIE DOKŁADAJ DO STRATY."
+    elif decision_state.position_phase is PositionPhase.HOLDING_EXTENDED:
+        verdict = (
+            "TRZYMAJ, NIE DOKŁADAJ — cena jest rozciągnięta względem pasma "
+            "SMA 20–SMA 50."
+        )
     else:
         verdict = "TRZYMAJ WG PLANU — brak naruszenia stopu lub tezy."
 
@@ -191,6 +243,26 @@ def build_position_assessment_lines(
     return lines
 
 
+def build_system_state_lines(decision_state: DecisionState) -> list[str]:
+    state_lines = [
+        "🧩 Stan systemu",
+        f"Ribbon: {decision_state.ribbon_state.value}",
+        f"Momentum H4: {decision_state.momentum_state.value}",
+        f"Faza pozycji: {decision_state.position_phase.value}",
+        f"Rdzeń: {decision_state.core_action.value}",
+        f"Dokładanie: {decision_state.adding_action.value}",
+    ]
+    if decision_state.position_role is not None:
+        state_lines.append(f"Rola: {decision_state.position_role.value.upper()}")
+    if decision_state.holding_horizon is not None:
+        state_lines.append(
+            f"Horyzont: {decision_state.holding_horizon.value.upper()}"
+        )
+    if decision_state.strategic_review_required:
+        state_lines.append("Przegląd strategiczny: WYMAGANY")
+    return state_lines
+
+
 def build_decision_report(
     instrument_id: str,
     current_price: float,
@@ -199,16 +271,25 @@ def build_decision_report(
     latest_confirmed_price: float | None = None,
 ) -> str:
     confirmed_price = latest_confirmed_price or current_price
+    decision_state = build_decision_state(
+        current_price=current_price,
+        latest_confirmed_price=confirmed_price,
+        moving_average_levels=moving_average_levels,
+        position=position,
+    )
     return "\n".join(
         [f"🧭 Raport decyzyjny — {instrument_id}"]
+        + build_system_state_lines(decision_state)
         + build_two_sided_scenario_lines(
             current_price=current_price,
             moving_average_levels=moving_average_levels,
             position=position,
+            decision_state=decision_state,
         )
         + build_position_assessment_lines(
             current_price=current_price,
             latest_confirmed_price=confirmed_price,
             position=position,
+            decision_state=decision_state,
         )
     )

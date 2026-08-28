@@ -11,6 +11,7 @@ from ma_alert_bot.ai_analysis import (
     format_ai_report_for_telegram,
 )
 from ma_alert_bot.analysis import calculate_latest_moving_average_levels
+from ma_alert_bot.decision_state import build_decision_state
 from ma_alert_bot.models import Candle
 from ma_alert_bot.notifications import TelegramNotifier
 from ma_alert_bot.okx_client import OkxMarketDataClient
@@ -176,6 +177,8 @@ class AiReportCoordinator:
             LOGGER.exception("Failed to fetch derivative metrics for %s", instrument_id)
             derivative_metrics = _empty_derivative_metrics()
 
+        moving_average_levels = calculate_latest_moving_average_levels(candles)
+        position = self._position_tracker.get_position(instrument_id)
         return InstrumentMarketSnapshot(
             instrument_id=instrument_id,
             generated_at_utc=datetime.now(tz=UTC).isoformat(),
@@ -191,12 +194,16 @@ class AiReportCoordinator:
             ),
             moving_average_levels={
                 str(period): value
-                for period, value in calculate_latest_moving_average_levels(
-                    candles
-                ).items()
+                for period, value in moving_average_levels.items()
             },
+            decision_state=build_decision_state(
+                current_price=current_price,
+                latest_confirmed_price=latest_confirmed_close,
+                moving_average_levels=moving_average_levels,
+                position=position,
+            ),
             derivative_metrics=derivative_metrics,
-            position=self._position_tracker.get_position(instrument_id),
+            position=position,
         )
 
     def _send_and_store_report(

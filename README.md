@@ -86,6 +86,44 @@ thesis support/resistance and the text thesis are optional. If the file does not
 does not contain the scanned instrument, the report still presents both market scenarios but
 does not invent a personal position.
 
+Each plan can also declare its role and intended holding horizon:
+
+```json
+{
+  "role": "core",
+  "holding_horizon": "position_w1"
+}
+```
+
+Allowed roles are `core` and `tactical`. Allowed horizons are `tactical_h4`, `swing_d1`,
+`position_w1`, and `cycle`. Defaults are `core` and `swing_d1`. These fields prevent an H4
+momentum warning from being misrepresented as an automatic exit from a multi-month core.
+
+## Hierarchical decision state
+
+The deterministic report separates market structure from position management:
+
+| Layer | Input | Responsibility |
+|---|---|---|
+| Ribbon | SMA 20/50/120/200 order | Bullish, bearish, mixed, or insufficient structure |
+| Momentum | Confirmed H4 close vs SMA 20 | Whether adding exposure remains allowed |
+| H4 structure | Confirmed H4 close vs SMA 50 | Tactical health and escalation |
+| Hard invalidation | Stop and explicit thesis level | Immediate deterministic action |
+
+A confirmed H4 close through SMA 20 creates `MOMENTUM_WARNING`: the core remains `HOLD`,
+while adding becomes `PAUSE_ADDS`. It is an early signal, not a complete opposite-side setup.
+The opposite scenario requires a failed SMA 20 reclaim and a confirmed SMA 50 loss.
+
+For tactical and D1 swing positions, a confirmed SMA 50 loss escalates to `THESIS_AT_RISK`
+and `REDUCE_RISK`. For `position_w1` or `cycle` cores, the same event becomes
+`EXECUTION_STRUCTURE_BROKEN`: H4 adding remains paused, but the application does not pretend
+that H4 alone invalidated a W1 or cycle thesis. An explicit thesis level or hard stop still has
+priority for every horizon.
+
+The system marks price as `HOLDING_EXTENDED` without a fixed percentage threshold. It compares
+the distance from price to SMA 20 with the current width of the SMA 20–SMA 50 band. This adapts
+to the instrument instead of embedding a coin-specific magic number.
+
 The report is intentionally not a one-sided signal. It never changes a position and does not
 issue a hidden stop. Its deterministic position verdicts mean:
 
@@ -96,6 +134,9 @@ issue a hidden stop. Its deterministic position verdicts mean:
 | `RUCH ZDYSKWALIFIKOWANY` | Configured thesis support/resistance was breached |
 | `STOP NARUSZONY` | Current price crossed the configured stop |
 | `CEL OSIĄGNIĘTY` | Current price reached the configured target |
+| `MOMENTUM_WARNING` | SMA 20 was lost; hold the core and pause additions |
+| `THESIS_AT_RISK` | SMA 50 was lost for a tactical or D1 swing position |
+| `EXECUTION_STRUCTURE_BROKEN` | H4 weakened, but a W1/cycle core needs strategic review |
 
 ### Optional automatic OKX position detection
 
@@ -163,6 +204,10 @@ Telegram and splits messages at Telegram's length limit. Allowed position decisi
 Reports and previous theses are stored in SQLite. A daily report therefore states what changed
 instead of recreating an unrelated opinion each day. Web facts require a source URL; missing or
 conflicting data must be reported explicitly.
+
+Every AI market snapshot includes the deterministic ribbon, momentum, position phase,
+`core_action`, `adding_action`, role, and holding horizon. The model may explain conflicts but
+must not silently replace the hard state produced by the scanner.
 
 The deterministic risk layer is deliberately independent. A failed or slow OpenAI request does
 not suppress the original SMA alert. Event research is sent as a follow-up Telegram message.
