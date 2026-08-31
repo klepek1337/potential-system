@@ -120,6 +120,16 @@ def main() -> None:
         position_store=position_store,
         dominant_ema_timeframes=settings.dominant_ema_timeframes,
         dominant_ema_scan_interval_seconds=settings.dominant_ema_scan_interval_seconds,
+        minute_sma_tilt_enabled=settings.minute_sma_tilt_enabled,
+        minute_sma_tilt_period=settings.minute_sma_tilt_period,
+        minute_sma_tilt_lookback_minutes=settings.minute_sma_tilt_lookback_minutes,
+        minute_sma_tilt_strong_threshold_atr=(
+            settings.minute_sma_tilt_strong_threshold_atr
+        ),
+        minute_sma_tilt_change_threshold_atr=(
+            settings.minute_sma_tilt_change_threshold_atr
+        ),
+        minute_sma_tilt_cooldown_seconds=settings.minute_sma_tilt_cooldown_seconds,
     )
 
     try:

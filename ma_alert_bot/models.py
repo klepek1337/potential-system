@@ -19,6 +19,12 @@ class PositionSide(StrEnum):
     SHORT = "short"
 
 
+class TiltDirection(StrEnum):
+    RISING = "rising"
+    FALLING = "falling"
+    FLAT = "flat"
+
+
 @dataclass(frozen=True)
 class Candle:
     opening_timestamp_ms: int
@@ -81,3 +87,16 @@ class ProfitProtectionAssessment:
     protected_pnl_per_unit: float
     projected_total_pnl: float | None
     stage: int
+
+
+@dataclass(frozen=True)
+class MinuteSmaTiltAssessment:
+    period: int
+    lookback_minutes: int
+    current_price: float
+    sma_value: float
+    previous_tilt_atr: float
+    current_tilt_atr: float
+    tilt_change_atr: float
+    direction: TiltDirection
+    candle_timestamp_ms: int
