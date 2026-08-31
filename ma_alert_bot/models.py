@@ -69,3 +69,15 @@ class DominantEmaCandidate:
     successful_tests: int
     atr: float
     proposed_stop: float
+
+
+@dataclass(frozen=True)
+class ProfitProtectionAssessment:
+    r_multiple: float
+    distance_from_ema_atr: float
+    target_reduction_percent: int
+    newly_recommended_reduction_percent: int
+    remaining_percent: int
+    protected_pnl_per_unit: float
+    projected_total_pnl: float | None
+    stage: int

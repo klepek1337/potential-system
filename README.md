@@ -101,10 +101,22 @@ not repeat an alert already registered for the same instrument, SMA, and H4 cand
 python -m unittest discover -v
 ```
 
+## Position-risk modules
+
+- [Manual position registry](docs/manual-positions.md)
+- [Configurable EMA levels](docs/ema-levels.md)
+- [Dominant EMA stop anchor](docs/dominant-ema-stop.md)
+- [Unrealized profit protection](docs/profit-protection.md)
+- [Complete architecture](docs/system-overview.md)
+
+All risk outputs are advisory. The project uses no authenticated trading endpoint and cannot place,
+edit, reduce, or close a position.
+
 ## Deliberate first-version limits
 
 - Instruments are explicitly configured to prevent alert spam.
 - The program uses public OKX endpoints and requires no OKX API key.
-- It monitors only simple moving averages and H4 candles.
+- Original touch alerts monitor only simple moving averages and H4 candles; EMA risk analysis is a
+  separate advisory layer.
 - It does not treat an intrabar touch as confirmation.
 - It does not aggregate prices from other exchanges.

@@ -20,12 +20,14 @@ from ma_alert_bot.notifications import (
     build_current_levels_message,
     build_current_ema_levels_message,
     build_dominant_ema_message,
+    build_profit_protection_message,
     build_program_started_message,
     build_test_resolved_message,
     build_test_started_message,
 )
 from ma_alert_bot.okx_client import OkxMarketDataClient
 from ma_alert_bot.position_store import PositionStore
+from ma_alert_bot.profit_protection import assess_profit_protection
 from ma_alert_bot.state_store import AlertStateStore
 
 
@@ -118,6 +120,19 @@ class MovingAverageMonitor:
                 build_dominant_ema_message(
                     instrument_id, candidate, previous_stop, stop_anchor
                 )
+            )
+        previous_stage = self._state_store.get_profit_protection_stage(instrument_id)
+        assessment = assess_profit_protection(
+            position, current_price, stop_anchor, candidate, previous_stage
+        )
+        if assessment.stage > previous_stage:
+            self._notifier.send(
+                build_profit_protection_message(
+                    position, current_price, stop_anchor, assessment
+                )
+            )
+            self._state_store.save_profit_protection_stage(
+                instrument_id, assessment.stage
             )
 
     def _send_current_level_summary(

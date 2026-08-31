@@ -46,7 +46,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return argument_parser
 
 
-def handle_position_command(arguments: argparse.Namespace, store: PositionStore) -> None:
+def handle_position_command(
+    arguments: argparse.Namespace,
+    store: PositionStore,
+    state_store: AlertStateStore,
+) -> None:
     if arguments.position_command == "set":
         position = ManualPosition(
             instrument_id=arguments.instrument_id.upper(),
@@ -58,11 +62,12 @@ def handle_position_command(arguments: argparse.Namespace, store: PositionStore)
         )
         # Validate through the same serialization path used for future reads.
         store.set(position)
-        store.list_positions()
+        state_store.reset_position_risk_state(position.instrument_id)
         print(f"Saved {position.side.value} {position.instrument_id}")
         return
     if arguments.position_command == "remove":
         removed = store.remove(arguments.instrument_id)
+        state_store.reset_position_risk_state(arguments.instrument_id)
         print("Removed" if removed else "Position not found")
         return
     for position in store.list_positions():
@@ -94,8 +99,9 @@ def main() -> None:
     arguments = build_argument_parser().parse_args()
     settings = Settings.from_environment()
     position_store = PositionStore(settings.positions_file_path)
+    state_store = AlertStateStore(settings.state_database_path)
     if arguments.command == "position":
-        handle_position_command(arguments, position_store)
+        handle_position_command(arguments, position_store, state_store)
         return
 
     market_data_client = OkxMarketDataClient(settings.okx_api_base_url)
@@ -104,7 +110,6 @@ def main() -> None:
         chat_id=settings.telegram_chat_id,
         dry_run=settings.dry_run,
     )
-    state_store = AlertStateStore(settings.state_database_path)
     monitor = MovingAverageMonitor(
         market_data_client=market_data_client,
         state_store=state_store,
