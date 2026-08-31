@@ -9,6 +9,10 @@ The scanner watches `SMA 20`, `SMA 50`, `SMA 120`, and `SMA 200` and sends:
 2. one alert when the live H4 candle first touches an average;
 3. one resolution after that candle closes.
 
+An optional one-minute layer also detects sharp ATR-normalized changes in the slope of SMA 20.
+See [`docs/minute-sma-tilt.md`](docs/minute-sma-tilt.md). It is an informational micro-momentum
+warning and does not execute any trading action.
+
 The result depends on the side from which price approached the average:
 
 | Approach | H4 close | Result |
@@ -101,10 +105,22 @@ not repeat an alert already registered for the same instrument, SMA, and H4 cand
 python -m unittest discover -v
 ```
 
+## Position-risk modules
+
+- [Manual position registry](docs/manual-positions.md)
+- [Configurable EMA levels](docs/ema-levels.md)
+- [Dominant EMA stop anchor](docs/dominant-ema-stop.md)
+- [Unrealized profit protection](docs/profit-protection.md)
+- [Complete architecture](docs/system-overview.md)
+
+All risk outputs are advisory. The project uses no authenticated trading endpoint and cannot place,
+edit, reduce, or close a position.
+
 ## Deliberate first-version limits
 
 - Instruments are explicitly configured to prevent alert spam.
 - The program uses public OKX endpoints and requires no OKX API key.
-- It monitors only simple moving averages and H4 candles.
+- Original touch alerts monitor only simple moving averages and H4 candles; EMA risk analysis is a
+  separate advisory layer.
 - It does not treat an intrabar touch as confirmation.
 - It does not aggregate prices from other exchanges.

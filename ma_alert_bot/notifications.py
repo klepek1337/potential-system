@@ -2,7 +2,16 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from ma_alert_bot.http_json import post_json
-from ma_alert_bot.models import ApproachSide, MovingAverageTest, TestOutcome
+from ma_alert_bot.models import (
+    ApproachSide,
+    DominantEmaCandidate,
+    ManualPosition,
+    MinuteSmaTiltAssessment,
+    MovingAverageTest,
+    ProfitProtectionAssessment,
+    TestOutcome,
+    TiltDirection,
+)
 
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -37,6 +46,9 @@ def build_program_started_message(
     instrument_ids: tuple[str, ...],
     touch_margin_ratio: float,
     ema_periods: tuple[int, ...] = (20, 50, 120, 200),
+    minute_sma_tilt_enabled: bool = False,
+    minute_sma_tilt_period: int = 20,
+    minute_sma_tilt_lookback_minutes: int = 5,
 ) -> str:
     touch_margin_percent = touch_margin_ratio * RATIO_TO_PERCENT_MULTIPLIER
     return "\n".join(
@@ -45,6 +57,13 @@ def build_program_started_message(
             "Interwał alertów SMA: H4",
             "SMA: 20, 50, 120, 200",
             f"EMA: {', '.join(str(period) for period in ema_periods)}",
+            "Tilt SMA 1m: "
+            + (
+                f"ON — SMA {minute_sma_tilt_period}, "
+                f"okno {minute_sma_tilt_lookback_minutes}m"
+                if minute_sma_tilt_enabled
+                else "OFF"
+            ),
             f"Margines kontaktu: {touch_margin_percent:.3g}%",
             f"Instrumenty: {', '.join(instrument_ids)}",
         )
@@ -124,6 +143,98 @@ def build_current_ema_levels_message(
             f"EMA {period}: {format_price(value)} ({abs(distance):.2f}% {side})"
         )
     return "\n".join(lines)
+
+
+def build_dominant_ema_message(
+    instrument_id: str,
+    candidate: DominantEmaCandidate,
+    previous_stop: float,
+    stop_anchor: float,
+) -> str:
+    return "\n".join(
+        (
+            f"🛡️ Dominująca EMA — {instrument_id}",
+            f"Średnia: EMA {candidate.period} ({candidate.timeframe})",
+            f"Wartość: {format_price(candidate.value)}",
+            f"Jakość: {candidate.score:.1f}/100",
+            f"Zamknięcia po właściwej stronie: {candidate.correct_close_ratio:.0%}",
+            f"Najdłuższa konfirmacja: {candidate.longest_confirmation} świec",
+            f"Przecięcia korpusem: {candidate.body_crossings}",
+            f"Udane testy: {candidate.successful_tests}",
+            f"Dotychczasowy stop: {format_price(previous_stop)}",
+            f"Jednokierunkowy stop-anchor: {format_price(stop_anchor)}",
+            "Tryb: informacyjny — bot nie zmienia zleceń.",
+        )
+    )
+
+
+def build_profit_protection_message(
+    position: ManualPosition,
+    current_price: float,
+    stop_anchor: float,
+    assessment: ProfitProtectionAssessment,
+) -> str:
+    total = (
+        f"{assessment.projected_total_pnl:+.2f} USD/USDC (estymacja)"
+        if assessment.projected_total_pnl is not None
+        else "brak value — wynik na 1 jednostkę"
+    )
+    action = (
+        f"ROZWAŻ REDUKCJĘ {assessment.newly_recommended_reduction_percent}%"
+        if assessment.newly_recommended_reduction_percent > 0
+        else "HOLD / bez nowej redukcji"
+    )
+    return "\n".join(
+        (
+            f"💰 Ochrona niezrealizowanego zysku — {position.instrument_id}",
+            f"Pozycja: {position.side.value.upper()} | "
+            f"wejście {format_price(position.entry_price)}",
+            f"Cena: {format_price(current_price)} | stop-anchor {format_price(stop_anchor)}",
+            f"Wynik: {assessment.r_multiple:+.2f}R",
+            f"Oddalenie od dominującej EMA: {assessment.distance_from_ema_atr:.2f} ATR",
+            f"Docelowo zredukowane: {assessment.target_reduction_percent}%",
+            f"Po redukcji pozostaje: {assessment.remaining_percent}%",
+            f"Najgorszy wynik na jednostkę: {assessment.protected_pnl_per_unit:+.6g}",
+            f"Najgorszy wynik pozycji: {total}",
+            f"Rekomendacja: {action}",
+            "Tryb informacyjny; bot nie zakłada wykonania redukcji.",
+        )
+    )
+
+
+def build_minute_sma_tilt_message(
+    instrument_id: str,
+    assessment: MinuteSmaTiltAssessment,
+    position: ManualPosition | None,
+) -> str:
+    direction_labels = {
+        TiltDirection.RISING: "⬆️ mocno w górę",
+        TiltDirection.FALLING: "⬇️ mocno w dół",
+        TiltDirection.FLAT: "➡️ płasko",
+    }
+    position_context = "Brak skonfigurowanej pozycji."
+    if position is not None:
+        is_adverse = (
+            position.side.value == "long" and assessment.direction is TiltDirection.FALLING
+        ) or (
+            position.side.value == "short" and assessment.direction is TiltDirection.RISING
+        )
+        impact = "PRZECIW pozycji" if is_adverse else "zgodnie z pozycją"
+        position_context = f"Pozycja: {position.side.value.upper()} — {impact}"
+    return "\n".join(
+        (
+            f"⚡ Mocna zmiana tiltu SMA 1m — {instrument_id}",
+            f"Cena: {format_price(assessment.current_price)}",
+            f"SMA {assessment.period}: {format_price(assessment.sma_value)}",
+            f"Okno pomiaru: {assessment.lookback_minutes} zamkniętych świec 1m",
+            f"Poprzedni tilt: {assessment.previous_tilt_atr:+.2f} ATR",
+            f"Aktualny tilt: {assessment.current_tilt_atr:+.2f} ATR",
+            f"Zmiana tiltu: {assessment.tilt_change_atr:+.2f} ATR",
+            f"Kierunek: {direction_labels[assessment.direction]}",
+            position_context,
+            "To mikro-momentum, nie samodzielny sygnał zamknięcia pozycji.",
+        )
+    )
 
 
 def build_test_resolved_message(

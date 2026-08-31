@@ -1,9 +1,16 @@
 import unittest
 
 from ma_alert_bot.notifications import (
-    build_current_levels_message,
     build_current_ema_levels_message,
+    build_current_levels_message,
+    build_minute_sma_tilt_message,
     build_program_started_message,
+)
+from ma_alert_bot.models import (
+    ManualPosition,
+    MinuteSmaTiltAssessment,
+    PositionSide,
+    TiltDirection,
 )
 
 
@@ -12,6 +19,7 @@ class StartupNotificationTests(unittest.TestCase):
         message = build_program_started_message(
             instrument_ids=("BTC-USDT-SWAP", "ETH-USDT-SWAP"),
             touch_margin_ratio=0.001,
+            minute_sma_tilt_enabled=True,
         )
 
         self.assertIn("scanner uruchomiony", message)
@@ -19,6 +27,7 @@ class StartupNotificationTests(unittest.TestCase):
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
         self.assertIn("BTC-USDT-SWAP, ETH-USDT-SWAP", message)
+        self.assertIn("Tilt SMA 1m: ON", message)
 
     def test_level_message_contains_price_and_all_averages(self) -> None:
         message = build_current_levels_message(
@@ -41,6 +50,25 @@ class StartupNotificationTests(unittest.TestCase):
         )
         self.assertIn("EMA 20", message)
         self.assertNotIn("SMA 20", message)
+
+    def test_tilt_message_marks_move_against_long_position(self) -> None:
+        message = build_minute_sma_tilt_message(
+            "BTC-USDT-SWAP",
+            MinuteSmaTiltAssessment(
+                period=20,
+                lookback_minutes=5,
+                current_price=78_700,
+                sma_value=78_750,
+                previous_tilt_atr=0.3,
+                current_tilt_atr=-0.4,
+                tilt_change_atr=-0.7,
+                direction=TiltDirection.FALLING,
+                candle_timestamp_ms=1_000,
+            ),
+            ManualPosition("BTC-USDT-SWAP", PositionSide.LONG, 78_856, 76_415),
+        )
+        self.assertIn("PRZECIW pozycji", message)
+        self.assertIn("nie samodzielny sygnał", message)
 
 
 if __name__ == "__main__":

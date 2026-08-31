@@ -19,6 +19,12 @@ class PositionSide(StrEnum):
     SHORT = "short"
 
 
+class TiltDirection(StrEnum):
+    RISING = "rising"
+    FALLING = "falling"
+    FLAT = "flat"
+
+
 @dataclass(frozen=True)
 class Candle:
     opening_timestamp_ms: int
@@ -55,3 +61,42 @@ class ManualPosition:
     stop_price: float
     position_value_usd: float | None = None
     leverage: float | None = None
+
+
+@dataclass(frozen=True)
+class DominantEmaCandidate:
+    timeframe: str
+    period: int
+    value: float
+    score: float
+    correct_close_ratio: float
+    longest_confirmation: int
+    body_crossings: int
+    successful_tests: int
+    atr: float
+    proposed_stop: float
+
+
+@dataclass(frozen=True)
+class ProfitProtectionAssessment:
+    r_multiple: float
+    distance_from_ema_atr: float
+    target_reduction_percent: int
+    newly_recommended_reduction_percent: int
+    remaining_percent: int
+    protected_pnl_per_unit: float
+    projected_total_pnl: float | None
+    stage: int
+
+
+@dataclass(frozen=True)
+class MinuteSmaTiltAssessment:
+    period: int
+    lookback_minutes: int
+    current_price: float
+    sma_value: float
+    previous_tilt_atr: float
+    current_tilt_atr: float
+    tilt_change_atr: float
+    direction: TiltDirection
+    candle_timestamp_ms: int
