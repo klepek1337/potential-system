@@ -14,6 +14,11 @@ class TestOutcome(StrEnum):
     RESISTANCE_RECLAIMED = "resistance_reclaimed"
 
 
+class PositionSide(StrEnum):
+    LONG = "long"
+    SHORT = "short"
+
+
 @dataclass(frozen=True)
 class Candle:
     opening_timestamp_ms: int
@@ -41,3 +46,12 @@ class UnresolvedTest:
     candle_opening_timestamp_ms: int
     approach_side: ApproachSide
 
+
+@dataclass(frozen=True)
+class ManualPosition:
+    instrument_id: str
+    side: PositionSide
+    entry_price: float
+    stop_price: float
+    position_value_usd: float | None = None
+    leverage: float | None = None

@@ -9,6 +9,7 @@ DEFAULT_OKX_API_BASE_URL = "https://www.okx.com"
 DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_DISPLAY_TIMEZONE = "Europe/Luxembourg"
 DEFAULT_STATE_DATABASE_PATH = "data/ma_alerts.sqlite3"
+DEFAULT_POSITIONS_FILE_PATH = "data/positions.json"
 DEFAULT_MOVING_AVERAGE_TOUCH_MARGIN_PERCENT = 0.1
 DEFAULT_SEND_STARTUP_SUMMARY = True
 MINIMUM_POLL_INTERVAL_SECONDS = 10
@@ -40,6 +41,7 @@ class Settings:
     poll_interval_seconds: int
     display_timezone: str
     state_database_path: Path
+    positions_file_path: Path
     moving_average_touch_margin_ratio: float
     send_startup_summary: bool
     dry_run: bool
@@ -59,6 +61,9 @@ class Settings:
             display_timezone=os.getenv("DISPLAY_TIMEZONE", DEFAULT_DISPLAY_TIMEZONE),
             state_database_path=Path(
                 os.getenv("STATE_DATABASE_PATH", DEFAULT_STATE_DATABASE_PATH)
+            ),
+            positions_file_path=Path(
+                os.getenv("POSITIONS_FILE_PATH", DEFAULT_POSITIONS_FILE_PATH)
             ),
             moving_average_touch_margin_ratio=(
                 float(
