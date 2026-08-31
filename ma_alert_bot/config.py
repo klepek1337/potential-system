@@ -12,11 +12,13 @@ DEFAULT_STATE_DATABASE_PATH = "data/ma_alerts.sqlite3"
 DEFAULT_POSITIONS_FILE_PATH = "data/positions.json"
 DEFAULT_MOVING_AVERAGE_TOUCH_MARGIN_PERCENT = 0.1
 DEFAULT_SEND_STARTUP_SUMMARY = True
+DEFAULT_SEND_STARTUP_CONFIGURATION = False
+DEFAULT_SEND_STARTUP_LEVEL_SUMMARIES = False
 DEFAULT_EMA_PERIODS = (20, 50, 120, 200)
 DEFAULT_DOMINANT_EMA_TIMEFRAMES = ("15m", "1H", "4H", "1D")
 DEFAULT_DOMINANT_EMA_SCAN_INTERVAL_SECONDS = 3600
 DEFAULT_MINUTE_SMA_TILT_ENABLED = True
-DEFAULT_MINUTE_SMA_TILT_PERIOD = 20
+DEFAULT_MINUTE_SMA_TILT_PERIOD = 200
 DEFAULT_MINUTE_SMA_TILT_LOOKBACK_MINUTES = 5
 DEFAULT_MINUTE_SMA_TILT_STRONG_THRESHOLD_ATR = 0.25
 DEFAULT_MINUTE_SMA_TILT_CHANGE_THRESHOLD_ATR = 0.5
@@ -71,6 +73,8 @@ class Settings:
     positions_file_path: Path
     moving_average_touch_margin_ratio: float
     send_startup_summary: bool
+    send_startup_configuration: bool
+    send_startup_level_summaries: bool
     ema_periods: tuple[int, ...]
     dominant_ema_timeframes: tuple[str, ...]
     dominant_ema_scan_interval_seconds: int
@@ -113,6 +117,14 @@ class Settings:
             send_startup_summary=parse_boolean(
                 os.getenv("SEND_STARTUP_SUMMARY"),
                 default_value=DEFAULT_SEND_STARTUP_SUMMARY,
+            ),
+            send_startup_configuration=parse_boolean(
+                os.getenv("SEND_STARTUP_CONFIGURATION"),
+                default_value=DEFAULT_SEND_STARTUP_CONFIGURATION,
+            ),
+            send_startup_level_summaries=parse_boolean(
+                os.getenv("SEND_STARTUP_LEVEL_SUMMARIES"),
+                default_value=DEFAULT_SEND_STARTUP_LEVEL_SUMMARIES,
             ),
             ema_periods=parse_positive_periods(os.getenv("EMA_PERIODS")),
             dominant_ema_timeframes=parse_csv_values(

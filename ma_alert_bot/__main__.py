@@ -130,6 +130,7 @@ def main() -> None:
             settings.minute_sma_tilt_change_threshold_atr
         ),
         minute_sma_tilt_cooldown_seconds=settings.minute_sma_tilt_cooldown_seconds,
+        send_startup_configuration=settings.send_startup_configuration,
     )
 
     try:
@@ -140,7 +141,7 @@ def main() -> None:
             scan_all_instruments(
                 monitor,
                 settings.instrument_ids,
-                include_level_summary=settings.send_startup_summary,
+                include_level_summary=settings.send_startup_level_summaries,
             )
             return
 
@@ -150,7 +151,7 @@ def main() -> None:
                 monitor,
                 settings.instrument_ids,
                 include_level_summary=(
-                    is_first_scan and settings.send_startup_summary
+                    is_first_scan and settings.send_startup_level_summaries
                 ),
             )
             is_first_scan = False

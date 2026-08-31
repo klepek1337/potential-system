@@ -49,11 +49,12 @@ class MovingAverageMonitor:
         dominant_ema_timeframes: tuple[str, ...] = ("15m", "1H", "4H", "1D"),
         dominant_ema_scan_interval_seconds: int = 3600,
         minute_sma_tilt_enabled: bool = True,
-        minute_sma_tilt_period: int = 20,
+        minute_sma_tilt_period: int = 200,
         minute_sma_tilt_lookback_minutes: int = 5,
         minute_sma_tilt_strong_threshold_atr: float = 0.25,
         minute_sma_tilt_change_threshold_atr: float = 0.5,
         minute_sma_tilt_cooldown_seconds: int = 600,
+        send_startup_configuration: bool = False,
     ) -> None:
         self._market_data_client = market_data_client
         self._state_store = state_store
@@ -71,6 +72,7 @@ class MovingAverageMonitor:
         self._minute_sma_tilt_strong_threshold_atr = minute_sma_tilt_strong_threshold_atr
         self._minute_sma_tilt_change_threshold_atr = minute_sma_tilt_change_threshold_atr
         self._minute_sma_tilt_cooldown_seconds = minute_sma_tilt_cooldown_seconds
+        self._send_startup_configuration = send_startup_configuration
 
     def send_program_started(self, instrument_ids: tuple[str, ...]) -> None:
         self._notifier.send(
@@ -81,6 +83,7 @@ class MovingAverageMonitor:
                 minute_sma_tilt_enabled=self._minute_sma_tilt_enabled,
                 minute_sma_tilt_period=self._minute_sma_tilt_period,
                 minute_sma_tilt_lookback_minutes=self._minute_sma_tilt_lookback_minutes,
+                include_configuration=self._send_startup_configuration,
             )
         )
 

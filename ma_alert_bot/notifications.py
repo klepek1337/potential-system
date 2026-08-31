@@ -12,6 +12,11 @@ from ma_alert_bot.models import (
     TestOutcome,
     TiltDirection,
 )
+from ma_alert_bot.version import (
+    CURRENT_RELEASE_CHANGES,
+    CURRENT_RELEASE_TITLE,
+    CURRENT_VERSION,
+)
 
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -47,27 +52,40 @@ def build_program_started_message(
     touch_margin_ratio: float,
     ema_periods: tuple[int, ...] = (20, 50, 120, 200),
     minute_sma_tilt_enabled: bool = False,
-    minute_sma_tilt_period: int = 20,
+    minute_sma_tilt_period: int = 200,
     minute_sma_tilt_lookback_minutes: int = 5,
+    include_configuration: bool = False,
 ) -> str:
     touch_margin_percent = touch_margin_ratio * RATIO_TO_PERCENT_MULTIPLIER
-    return "\n".join(
-        (
-            "🚀 Cryptostrata SMA/EMA scanner uruchomiony",
-            "Interwał alertów SMA: H4",
-            "SMA: 20, 50, 120, 200",
-            f"EMA: {', '.join(str(period) for period in ema_periods)}",
-            "Tilt SMA 1m: "
-            + (
-                f"ON — SMA {minute_sma_tilt_period}, "
-                f"okno {minute_sma_tilt_lookback_minutes}m"
-                if minute_sma_tilt_enabled
-                else "OFF"
-            ),
-            f"Margines kontaktu: {touch_margin_percent:.3g}%",
-            f"Instrumenty: {', '.join(instrument_ids)}",
+    release_change_lines = tuple(f"• {change}" for change in CURRENT_RELEASE_CHANGES)
+    message_lines = [
+        f"🚀 Cryptostrata v{CURRENT_VERSION} uruchomiona",
+        f"Najnowsza aktualizacja: {CURRENT_RELEASE_TITLE}",
+        "",
+        f"🆕 Zmiany w v{CURRENT_VERSION}",
+        *release_change_lines,
+    ]
+    if include_configuration:
+        message_lines.extend(
+            (
+                "",
+                "⚙️ Aktywna konfiguracja",
+                "Moduły: SMA/EMA",
+                "Interwał alertów SMA: H4",
+                "SMA: 20, 50, 120, 200",
+                f"EMA: {', '.join(str(period) for period in ema_periods)}",
+                "Tilt SMA 1m: "
+                + (
+                    f"ON — SMA {minute_sma_tilt_period}, "
+                    f"okno {minute_sma_tilt_lookback_minutes}m"
+                    if minute_sma_tilt_enabled
+                    else "OFF"
+                ),
+                f"Margines kontaktu: {touch_margin_percent:.3g}%",
+                f"Instrumenty: {', '.join(instrument_ids)}",
+            )
         )
-    )
+    return "\n".join(message_lines)
 
 
 def build_current_levels_message(

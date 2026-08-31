@@ -1,6 +1,6 @@
 [project]
 name = "okx-ma-telegram-alerts"
-version = "0.1.0"
+version = "1.6.0"
 description = "OKX H4 moving-average tests sent to Telegram"
 requires-python = ">=3.11"
 dependencies = []
