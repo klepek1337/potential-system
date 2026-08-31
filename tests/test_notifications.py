@@ -22,7 +22,10 @@ class StartupNotificationTests(unittest.TestCase):
             minute_sma_tilt_enabled=True,
         )
 
-        self.assertIn("scanner uruchomiony", message)
+        self.assertIn("Cryptostrata v1.5.0 uruchomiona", message)
+        self.assertIn("Najnowsza aktualizacja: SMA Tilt 1m", message)
+        self.assertIn("Zmiany w v1.5.0", message)
+        self.assertIn("kierunek SMA 20", message)
         self.assertIn("SMA/EMA", message)
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
