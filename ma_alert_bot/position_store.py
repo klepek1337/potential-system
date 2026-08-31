@@ -29,6 +29,12 @@ class PositionStore:
     def set(self, position: ManualPosition) -> None:
         if position.position_value_usd is not None and position.position_value_usd <= 0:
             raise ValueError("Position value must be positive")
+        if position.entry_price <= 0 or position.stop_price <= 0:
+            raise ValueError("Entry and stop prices must be positive")
+        if position.side is PositionSide.LONG and position.stop_price >= position.entry_price:
+            raise ValueError("A long position stop must be below entry")
+        if position.side is PositionSide.SHORT and position.stop_price <= position.entry_price:
+            raise ValueError("A short position stop must be above entry")
         positions = [
             item
             for item in self.list_positions()

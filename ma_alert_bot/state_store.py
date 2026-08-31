@@ -53,6 +53,14 @@ class AlertStateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS profit_protection_state (
+                    instrument_id TEXT PRIMARY KEY,
+                    highest_notified_stage INTEGER NOT NULL
+                )
+                """
+            )
 
     def get_stop_anchor(self, instrument_id: str) -> float | None:
         state = self.get_dominant_ema_state(instrument_id)
@@ -91,6 +99,37 @@ class AlertStateStore:
                     updated_at=unixepoch()
                 """,
                 (instrument_id, stop_anchor, timeframe, ema_period, score),
+            )
+
+    def get_profit_protection_stage(self, instrument_id: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT highest_notified_stage FROM profit_protection_state WHERE instrument_id = ?",
+                (instrument_id,),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def save_profit_protection_stage(self, instrument_id: str, stage: int) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO profit_protection_state (instrument_id, highest_notified_stage)
+                VALUES (?, ?)
+                ON CONFLICT(instrument_id) DO UPDATE SET
+                    highest_notified_stage = MAX(highest_notified_stage, excluded.highest_notified_stage)
+                """,
+                (instrument_id, stage),
+            )
+
+    def reset_position_risk_state(self, instrument_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM position_stop_anchors WHERE instrument_id = ?",
+                (instrument_id.upper(),),
+            )
+            connection.execute(
+                "DELETE FROM profit_protection_state WHERE instrument_id = ?",
+                (instrument_id.upper(),),
             )
 
     def register_test_if_new(self, moving_average_test: MovingAverageTest) -> bool:

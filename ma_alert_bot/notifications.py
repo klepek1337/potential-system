@@ -2,7 +2,14 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from ma_alert_bot.http_json import post_json
-from ma_alert_bot.models import ApproachSide, DominantEmaCandidate, MovingAverageTest, TestOutcome
+from ma_alert_bot.models import (
+    ApproachSide,
+    DominantEmaCandidate,
+    ManualPosition,
+    MovingAverageTest,
+    ProfitProtectionAssessment,
+    TestOutcome,
+)
 
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -145,6 +152,39 @@ def build_dominant_ema_message(
             f"Dotychczasowy stop: {format_price(previous_stop)}",
             f"Jednokierunkowy stop-anchor: {format_price(stop_anchor)}",
             "Tryb: informacyjny — bot nie zmienia zleceń.",
+        )
+    )
+
+
+def build_profit_protection_message(
+    position: ManualPosition,
+    current_price: float,
+    stop_anchor: float,
+    assessment: ProfitProtectionAssessment,
+) -> str:
+    total = (
+        f"{assessment.projected_total_pnl:+.2f} USD/USDC (estymacja)"
+        if assessment.projected_total_pnl is not None
+        else "brak value — wynik na 1 jednostkę"
+    )
+    action = (
+        f"ROZWAŻ REDUKCJĘ {assessment.newly_recommended_reduction_percent}%"
+        if assessment.newly_recommended_reduction_percent > 0
+        else "HOLD / bez nowej redukcji"
+    )
+    return "\n".join(
+        (
+            f"💰 Ochrona niezrealizowanego zysku — {position.instrument_id}",
+            f"Pozycja: {position.side.value.upper()} | wejście {format_price(position.entry_price)}",
+            f"Cena: {format_price(current_price)} | stop-anchor {format_price(stop_anchor)}",
+            f"Wynik: {assessment.r_multiple:+.2f}R",
+            f"Oddalenie od dominującej EMA: {assessment.distance_from_ema_atr:.2f} ATR",
+            f"Docelowo zredukowane: {assessment.target_reduction_percent}%",
+            f"Po redukcji pozostaje: {assessment.remaining_percent}%",
+            f"Najgorszy wynik na jednostkę: {assessment.protected_pnl_per_unit:+.6g}",
+            f"Najgorszy wynik pozycji: {total}",
+            f"Rekomendacja: {action}",
+            "Tryb informacyjny; bot nie zakłada wykonania redukcji.",
         )
     )
 
