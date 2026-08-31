@@ -9,7 +9,7 @@ The scanner watches `SMA 20`, `SMA 50`, `SMA 120`, and `SMA 200` and sends:
 2. one alert when the live H4 candle first touches an average;
 3. one resolution after that candle closes.
 
-An optional one-minute layer also detects sharp ATR-normalized changes in the slope of SMA 20.
+An optional one-minute layer also detects sharp ATR-normalized changes in the slope of SMA 200.
 See [`docs/minute-sma-tilt.md`](docs/minute-sma-tilt.md). It is an informational micro-momentum
 warning and does not execute any trading action.
 
@@ -48,6 +48,19 @@ Startup reporting is enabled by default and can be disabled independently:
 SEND_STARTUP_SUMMARY=false
 ```
 
+Current SMA/EMA level messages at startup are controlled separately and disabled by default:
+
+```env
+SEND_STARTUP_SUMMARY=true
+SEND_STARTUP_CONFIGURATION=false
+SEND_STARTUP_LEVEL_SUMMARIES=false
+```
+
+This combination sends only the version and latest update before normal monitoring begins. Set
+`SEND_STARTUP_CONFIGURATION=true` to include active settings. Set
+`SEND_STARTUP_LEVEL_SUMMARIES=true` to restore every instrument's current SMA/EMA levels after
+startup.
+
 ## Setup
 
 Requirements: Python 3.11 or newer.
@@ -71,7 +84,14 @@ Optional parameters:
 .\install-and-run.ps1 -InstallDirectory "D:\Cryptostrata"
 .\install-and-run.ps1 -RunOnce
 .\install-and-run.ps1 -SkipTests
+.\install-and-run.ps1 -LocalChangesAction Stash
+.\install-and-run.ps1 -LocalChangesAction Discard
 ```
+
+When tracked or non-ignored local changes exist, the launcher asks whether to abort, store them in
+`git stash`, or discard them. `Discard` resets tracked files and removes only untracked files that
+are not ignored by Git. The ignored `.env`, `.venv`, `data/positions.json`, and SQLite database are
+preserved. The same choice can be supplied non-interactively with `-LocalChangesAction`.
 
 Release history is maintained in [`CHANGELOG.md`](CHANGELOG.md).
 

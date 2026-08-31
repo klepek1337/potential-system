@@ -20,17 +20,30 @@ class StartupNotificationTests(unittest.TestCase):
             instrument_ids=("BTC-USDT-SWAP", "ETH-USDT-SWAP"),
             touch_margin_ratio=0.001,
             minute_sma_tilt_enabled=True,
+            include_configuration=True,
         )
 
-        self.assertIn("Cryptostrata v1.5.0 uruchomiona", message)
-        self.assertIn("Najnowsza aktualizacja: SMA Tilt 1m", message)
-        self.assertIn("Zmiany w v1.5.0", message)
-        self.assertIn("kierunek SMA 20", message)
+        self.assertIn("Cryptostrata v1.6.0 uruchomiona", message)
+        self.assertIn("Najnowsza aktualizacja: Czystszy start i SMA 200 Tilt", message)
+        self.assertIn("Zmiany w v1.6.0", message)
+        self.assertIn("tilt 1m zmieniony z SMA 20 na SMA 200", message)
+        self.assertIn("zachowac albo odrzucic lokalne zmiany", message)
         self.assertIn("SMA/EMA", message)
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
         self.assertIn("BTC-USDT-SWAP, ETH-USDT-SWAP", message)
         self.assertIn("Tilt SMA 1m: ON", message)
+        self.assertIn("SMA 200", message)
+
+    def test_short_started_message_omits_configuration(self) -> None:
+        message = build_program_started_message(
+            instrument_ids=("BTC-USDT-SWAP",),
+            touch_margin_ratio=0.001,
+        )
+
+        self.assertIn("Zmiany w v1.6.0", message)
+        self.assertNotIn("Aktywna konfiguracja", message)
+        self.assertNotIn("Instrumenty:", message)
 
     def test_level_message_contains_price_and_all_averages(self) -> None:
         message = build_current_levels_message(

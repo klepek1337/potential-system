@@ -2,7 +2,9 @@
 param(
     [string]$InstallDirectory = (Join-Path $env:USERPROFILE "Cryptostrata"),
     [switch]$SkipTests,
-    [switch]$RunOnce
+    [switch]$RunOnce,
+    [ValidateSet("Ask", "Abort", "Stash", "Discard")]
+    [string]$LocalChangesAction = "Ask"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +16,13 @@ $EnvironmentFileName = ".env"
 $EnvironmentTemplateFileName = ".env.example"
 $MinimumPythonMajorVersion = 3
 $MinimumPythonMinorVersion = 11
+$LocalChangesActionAsk = "Ask"
+$LocalChangesActionAbort = "Abort"
+$LocalChangesActionStash = "Stash"
+$LocalChangesActionDiscard = "Discard"
+$LocalChangesChoiceAbort = "A"
+$LocalChangesChoiceStash = "S"
+$LocalChangesChoiceDiscard = "D"
 
 function Write-Step {
     param([Parameter(Mandatory)][string]$Message)
@@ -23,7 +32,7 @@ function Write-Step {
 function Assert-CommandAvailable {
     param([Parameter(Mandatory)][string]$CommandName)
     if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
-        throw "Brak wymaganej komendy '$CommandName'. Zainstaluj ją i uruchom skrypt ponownie."
+        throw "Brak wymaganej komendy '$CommandName'. Zainstaluj ja i uruchom skrypt ponownie."
     }
 }
 
@@ -46,7 +55,7 @@ function Invoke-Python {
     $PrefixArguments = @($PythonCommand | Select-Object -Skip 1)
     & $Executable @PrefixArguments @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Komenda Python zakończyła się kodem $LASTEXITCODE."
+        throw "Komenda Python zakonczyla sie kodem $LASTEXITCODE."
     }
 }
 
@@ -68,17 +77,77 @@ function Assert-BotNotRunning {
     }
 
     $ProcessIdentifiers = ($RunningBotProcesses.ProcessId -join ", ")
-    throw "Cryptostrata już działa (PID: $ProcessIdentifiers). Zatrzymaj starą instancję przed aktualizacją."
+    throw "Cryptostrata juz dziala (PID: $ProcessIdentifiers). Zatrzymaj stara instancje przed aktualizacja."
+}
+
+function Select-LocalChangesAction {
+    param([Parameter(Mandatory)][string]$ConfiguredAction)
+
+    if ($ConfiguredAction -ne $LocalChangesActionAsk) {
+        return $ConfiguredAction
+    }
+
+    Write-Warning "Repozytorium ma lokalne zmiany nieuwzglednione przez .gitignore."
+    git status --short
+    Write-Host "[$LocalChangesChoiceAbort] Abort - przerwij bez zmian"
+    Write-Host "[$LocalChangesChoiceStash] Stash - zachowaj zmiany w git stash"
+    Write-Host "[$LocalChangesChoiceDiscard] Discard - usun sledzone i nieignorowane zmiany"
+    while ($true) {
+        $SelectedChoice = (Read-Host "Wybierz A, S albo D").Trim().ToUpperInvariant()
+        if ($SelectedChoice -eq $LocalChangesChoiceAbort) {
+            return $LocalChangesActionAbort
+        }
+        if ($SelectedChoice -eq $LocalChangesChoiceStash) {
+            return $LocalChangesActionStash
+        }
+        if ($SelectedChoice -eq $LocalChangesChoiceDiscard) {
+            return $LocalChangesActionDiscard
+        }
+        Write-Warning "Nieprawidlowy wybor."
+    }
+}
+
+function Resolve-LocalChanges {
+    param([Parameter(Mandatory)][string]$ConfiguredAction)
+
+    $SelectedAction = Select-LocalChangesAction -ConfiguredAction $ConfiguredAction
+    if ($SelectedAction -eq $LocalChangesActionAbort) {
+        throw "Aktualizacja przerwana. Lokalne zmiany pozostaly nietkniete."
+    }
+    if ($SelectedAction -eq $LocalChangesActionStash) {
+        Write-Step "Zapisuje lokalne zmiany w git stash"
+        git stash push --include-untracked --message "Cryptostrata automatic update"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Nie udalo sie zapisac lokalnych zmian w git stash."
+        }
+        return
+    }
+    if ($SelectedAction -eq $LocalChangesActionDiscard) {
+        Write-Step "Usuwam sledzone i nieignorowane lokalne zmiany"
+        git reset --hard HEAD
+        if ($LASTEXITCODE -ne 0) {
+            throw "Nie udalo sie przywrocic sledzonych plikow."
+        }
+        git clean -fd
+        if ($LASTEXITCODE -ne 0) {
+            throw "Nie udalo sie usunac nieignorowanych plikow."
+        }
+        return
+    }
+    throw "Nieobslugiwana akcja dla lokalnych zmian: $SelectedAction"
 }
 
 function Update-Repository {
-    param([Parameter(Mandatory)][string]$RepositoryDirectory)
+    param(
+        [Parameter(Mandatory)][string]$RepositoryDirectory,
+        [Parameter(Mandatory)][string]$ConfiguredLocalChangesAction
+    )
 
     if (-not (Test-Path $RepositoryDirectory)) {
         Write-Step "Pobieram repozytorium"
         git clone --branch $MainBranchName --single-branch $RepositoryUrl $RepositoryDirectory
         if ($LASTEXITCODE -ne 0) {
-            throw "Nie udało się sklonować repozytorium."
+            throw "Nie udalo sie sklonowac repozytorium."
         }
         return
     }
@@ -96,17 +165,17 @@ function Update-Repository {
 
         $LocalChanges = git status --porcelain
         if ($LocalChanges) {
-            throw "Repozytorium ma lokalne zmiany. Zapisz je w commit/stash albo usuń ręcznie przed aktualizacją."
+            Resolve-LocalChanges -ConfiguredAction $ConfiguredLocalChangesAction
         }
 
-        Write-Step "Aktualizuję czysty branch main"
+        Write-Step "Aktualizuje czysty branch main"
         git switch $MainBranchName
         if ($LASTEXITCODE -ne 0) {
-            throw "Nie udało się przełączyć na branch main."
+            throw "Nie udalo sie przelaczyc na branch main."
         }
         git pull --ff-only origin $MainBranchName
         if ($LASTEXITCODE -ne 0) {
-            throw "Aktualizacja main nie jest fast-forward. Sprawdź historię repozytorium."
+            throw "Aktualizacja main nie jest fast-forward. Sprawdz historie repozytorium."
         }
     }
     finally {
@@ -118,39 +187,41 @@ Assert-CommandAvailable -CommandName "git"
 $SystemPythonCommand = Get-PythonCommand
 Assert-SupportedPythonVersion -PythonCommand $SystemPythonCommand
 Assert-BotNotRunning
-Update-Repository -RepositoryDirectory $InstallDirectory
+Update-Repository `
+    -RepositoryDirectory $InstallDirectory `
+    -ConfiguredLocalChangesAction $LocalChangesAction
 
 Set-Location $InstallDirectory
 $VirtualEnvironmentDirectory = Join-Path $InstallDirectory $VirtualEnvironmentDirectoryName
 $VirtualEnvironmentPython = Join-Path $VirtualEnvironmentDirectory "Scripts\python.exe"
 
 if (-not (Test-Path $VirtualEnvironmentPython)) {
-    Write-Step "Tworzę środowisko Python"
+    Write-Step "Tworze srodowisko Python"
     Invoke-Python -PythonCommand $SystemPythonCommand -Arguments @("-m", "venv", $VirtualEnvironmentDirectory)
 }
 
-Write-Step "Instaluję zależności"
+Write-Step "Instaluje zaleznosci"
 & $VirtualEnvironmentPython -m pip install --disable-pip-version-check -r requirements.txt
 if ($LASTEXITCODE -ne 0) {
-    throw "Instalacja zależności nie powiodła się."
+    throw "Instalacja zaleznosci nie powiodla sie."
 }
 
 $EnvironmentFilePath = Join-Path $InstallDirectory $EnvironmentFileName
 if (-not (Test-Path $EnvironmentFilePath)) {
     Copy-Item $EnvironmentTemplateFileName $EnvironmentFilePath
-    Write-Warning "Utworzono .env. Uzupełnij Telegram token/chat ID i ustaw DRY_RUN=false, gdy będziesz gotowy."
+    Write-Warning "Utworzono .env. Uzupelnij Telegram token/chat ID i ustaw DRY_RUN=false, gdy bedziesz gotowy."
     Start-Process notepad.exe -ArgumentList $EnvironmentFilePath -Wait
 }
 
 if (-not $SkipTests) {
-    Write-Step "Sprawdzam instalację testami"
+    Write-Step "Sprawdzam instalacje testami"
     & $VirtualEnvironmentPython -m unittest discover -v
     if ($LASTEXITCODE -ne 0) {
-        throw "Testy nie przeszły. Bot nie zostanie uruchomiony."
+        throw "Testy nie przeszly. Bot nie zostanie uruchomiony."
     }
 }
 
-Write-Step "Uruchamiam Cryptostratę"
+Write-Step "Uruchamiam Cryptostrate"
 $BotArguments = @("-m", "ma_alert_bot")
 if ($RunOnce) {
     $BotArguments += "--once"

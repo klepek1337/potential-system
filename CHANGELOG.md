@@ -3,6 +3,17 @@
 The project follows [Semantic Versioning](https://semver.org/). The version shown in the Telegram
 startup notification is defined once in `ma_alert_bot/version.py`.
 
+## [1.6.0] - 2026-08-31
+
+### Changed
+
+- Startup version/update notification is independent from current SMA/EMA level summaries.
+- Current SMA/EMA level summaries are disabled by default through
+  `SEND_STARTUP_LEVEL_SUMMARIES=false`.
+- Default one-minute tilt average changed from SMA 20 to SMA 200.
+- Windows launcher prompts to abort, stash, or discard tracked and non-ignored local changes while
+  preserving files covered by `.gitignore`.
+
 ## [1.5.0] - 2026-08-31
 
 ### Added
