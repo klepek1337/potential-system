@@ -111,6 +111,7 @@ def main() -> None:
         notifier=notifier,
         timezone_name=settings.display_timezone,
         touch_margin_ratio=settings.moving_average_touch_margin_ratio,
+        ema_periods=settings.ema_periods,
     )
 
     try:
