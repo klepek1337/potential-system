@@ -55,3 +55,17 @@ class ManualPosition:
     stop_price: float
     position_value_usd: float | None = None
     leverage: float | None = None
+
+
+@dataclass(frozen=True)
+class DominantEmaCandidate:
+    timeframe: str
+    period: int
+    value: float
+    score: float
+    correct_close_ratio: float
+    longest_confirmation: int
+    body_crossings: int
+    successful_tests: int
+    atr: float
+    proposed_stop: float

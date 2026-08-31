@@ -41,6 +41,57 @@ class AlertStateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS position_stop_anchors (
+                    instrument_id TEXT PRIMARY KEY,
+                    stop_anchor REAL NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    ema_period INTEGER NOT NULL,
+                    score REAL NOT NULL,
+                    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+                )
+                """
+            )
+
+    def get_stop_anchor(self, instrument_id: str) -> float | None:
+        state = self.get_dominant_ema_state(instrument_id)
+        return state[0] if state else None
+
+    def get_dominant_ema_state(
+        self, instrument_id: str
+    ) -> tuple[float, str, int, float] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT stop_anchor, timeframe, ema_period, score
+                FROM position_stop_anchors
+                WHERE instrument_id = ?
+                """,
+                (instrument_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return float(row[0]), str(row[1]), int(row[2]), float(row[3])
+
+    def save_stop_anchor(
+        self, instrument_id: str, stop_anchor: float, timeframe: str, ema_period: int, score: float
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO position_stop_anchors (
+                    instrument_id, stop_anchor, timeframe, ema_period, score
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(instrument_id) DO UPDATE SET
+                    stop_anchor=excluded.stop_anchor,
+                    timeframe=excluded.timeframe,
+                    ema_period=excluded.ema_period,
+                    score=excluded.score,
+                    updated_at=unixepoch()
+                """,
+                (instrument_id, stop_anchor, timeframe, ema_period, score),
+            )
 
     def register_test_if_new(self, moving_average_test: MovingAverageTest) -> bool:
         with self._connect() as connection:
@@ -113,4 +164,3 @@ class AlertStateStore:
                     unresolved_test.candle_opening_timestamp_ms,
                 ),
             )
-

@@ -19,12 +19,15 @@ class OkxMarketDataClient:
         return None
 
     def get_four_hour_candles(self, instrument_id: str) -> list[Candle]:
+        return self.get_candles(instrument_id, OKX_CANDLE_INTERVAL)
+
+    def get_candles(self, instrument_id: str, interval: str) -> list[Candle]:
         response_payload = get_json(
             base_url=self._api_base_url,
             path=OKX_CANDLES_PATH,
             query_parameters={
                 "instId": instrument_id,
-                "bar": OKX_CANDLE_INTERVAL,
+                "bar": interval,
                 "limit": str(OKX_CANDLE_LIMIT),
             },
             timeout_seconds=HTTP_TIMEOUT_SECONDS,

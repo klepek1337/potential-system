@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Sequence
 
 from ma_alert_bot.analysis import (
@@ -9,15 +10,22 @@ from ma_alert_bot.analysis import (
 )
 from ma_alert_bot.models import Candle
 from ma_alert_bot.ema_analysis import calculate_latest_ema_levels
+from ma_alert_bot.dominant_ema import (
+    dominant_ema_report_changed,
+    ratchet_stop,
+    select_dominant_ema,
+)
 from ma_alert_bot.notifications import (
     TelegramNotifier,
     build_current_levels_message,
     build_current_ema_levels_message,
+    build_dominant_ema_message,
     build_program_started_message,
     build_test_resolved_message,
     build_test_started_message,
 )
 from ma_alert_bot.okx_client import OkxMarketDataClient
+from ma_alert_bot.position_store import PositionStore
 from ma_alert_bot.state_store import AlertStateStore
 
 
@@ -33,6 +41,9 @@ class MovingAverageMonitor:
         timezone_name: str,
         touch_margin_ratio: float,
         ema_periods: tuple[int, ...] = (20, 50, 120, 200),
+        position_store: PositionStore | None = None,
+        dominant_ema_timeframes: tuple[str, ...] = ("15m", "1H", "4H", "1D"),
+        dominant_ema_scan_interval_seconds: int = 3600,
     ) -> None:
         self._market_data_client = market_data_client
         self._state_store = state_store
@@ -40,6 +51,10 @@ class MovingAverageMonitor:
         self._timezone_name = timezone_name
         self._touch_margin_ratio = touch_margin_ratio
         self._ema_periods = ema_periods
+        self._position_store = position_store
+        self._dominant_ema_timeframes = dominant_ema_timeframes
+        self._dominant_ema_scan_interval_seconds = dominant_ema_scan_interval_seconds
+        self._last_dominant_scan_at: dict[str, float] = {}
 
     def send_program_started(self, instrument_ids: tuple[str, ...]) -> None:
         self._notifier.send(
@@ -60,6 +75,50 @@ class MovingAverageMonitor:
             self._send_current_level_summary(instrument_id, candles)
         self._resolve_finished_tests(instrument_id, candles)
         self._register_current_tests(instrument_id, candles)
+        self._scan_dominant_ema_if_due(instrument_id)
+
+    def _scan_dominant_ema_if_due(self, instrument_id: str) -> None:
+        if self._position_store is None:
+            return
+        position = self._position_store.get(instrument_id)
+        if position is None:
+            return
+        now = time.monotonic()
+        last_scan = self._last_dominant_scan_at.get(instrument_id)
+        if last_scan is not None and now - last_scan < self._dominant_ema_scan_interval_seconds:
+            return
+        candles_by_timeframe = {
+            timeframe: self._market_data_client.get_candles(instrument_id, timeframe)
+            for timeframe in self._dominant_ema_timeframes
+        }
+        candidate = select_dominant_ema(candles_by_timeframe, self._ema_periods, position.side)
+        self._last_dominant_scan_at[instrument_id] = now
+        if candidate is None:
+            return
+        current_price = candles_by_timeframe[self._dominant_ema_timeframes[0]][-1].closing_price
+        proposed_is_valid = (
+            candidate.proposed_stop < current_price
+            if position.side.value == "long"
+            else candidate.proposed_stop > current_price
+        )
+        if not proposed_is_valid:
+            LOGGER.warning("Ignoring dominant EMA stop beyond current price for %s", instrument_id)
+            return
+        previous_state = self._state_store.get_dominant_ema_state(instrument_id)
+        previous_stop = previous_state[0] if previous_state else position.stop_price
+        stop_anchor = ratchet_stop(previous_stop, candidate.proposed_stop, position.side)
+        should_notify = dominant_ema_report_changed(
+            previous_state, candidate.timeframe, candidate.period, stop_anchor
+        )
+        self._state_store.save_stop_anchor(
+            instrument_id, stop_anchor, candidate.timeframe, candidate.period, candidate.score
+        )
+        if should_notify:
+            self._notifier.send(
+                build_dominant_ema_message(
+                    instrument_id, candidate, previous_stop, stop_anchor
+                )
+            )
 
     def _send_current_level_summary(
         self,

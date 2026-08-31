@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from ma_alert_bot.http_json import post_json
-from ma_alert_bot.models import ApproachSide, MovingAverageTest, TestOutcome
+from ma_alert_bot.models import ApproachSide, DominantEmaCandidate, MovingAverageTest, TestOutcome
 
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -124,6 +124,29 @@ def build_current_ema_levels_message(
             f"EMA {period}: {format_price(value)} ({abs(distance):.2f}% {side})"
         )
     return "\n".join(lines)
+
+
+def build_dominant_ema_message(
+    instrument_id: str,
+    candidate: DominantEmaCandidate,
+    previous_stop: float,
+    stop_anchor: float,
+) -> str:
+    return "\n".join(
+        (
+            f"🛡️ Dominująca EMA — {instrument_id}",
+            f"Średnia: EMA {candidate.period} ({candidate.timeframe})",
+            f"Wartość: {format_price(candidate.value)}",
+            f"Jakość: {candidate.score:.1f}/100",
+            f"Zamknięcia po właściwej stronie: {candidate.correct_close_ratio:.0%}",
+            f"Najdłuższa konfirmacja: {candidate.longest_confirmation} świec",
+            f"Przecięcia korpusem: {candidate.body_crossings}",
+            f"Udane testy: {candidate.successful_tests}",
+            f"Dotychczasowy stop: {format_price(previous_stop)}",
+            f"Jednokierunkowy stop-anchor: {format_price(stop_anchor)}",
+            "Tryb: informacyjny — bot nie zmienia zleceń.",
+        )
+    )
 
 
 def build_test_resolved_message(

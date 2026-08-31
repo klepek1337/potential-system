@@ -112,6 +112,9 @@ def main() -> None:
         timezone_name=settings.display_timezone,
         touch_margin_ratio=settings.moving_average_touch_margin_ratio,
         ema_periods=settings.ema_periods,
+        position_store=position_store,
+        dominant_ema_timeframes=settings.dominant_ema_timeframes,
+        dominant_ema_scan_interval_seconds=settings.dominant_ema_scan_interval_seconds,
     )
 
     try:

@@ -13,6 +13,8 @@ DEFAULT_POSITIONS_FILE_PATH = "data/positions.json"
 DEFAULT_MOVING_AVERAGE_TOUCH_MARGIN_PERCENT = 0.1
 DEFAULT_SEND_STARTUP_SUMMARY = True
 DEFAULT_EMA_PERIODS = (20, 50, 120, 200)
+DEFAULT_DOMINANT_EMA_TIMEFRAMES = ("15m", "1H", "4H", "1D")
+DEFAULT_DOMINANT_EMA_SCAN_INTERVAL_SECONDS = 3600
 MINIMUM_POLL_INTERVAL_SECONDS = 10
 MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
 MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
@@ -44,6 +46,15 @@ def parse_positive_periods(environment_value: str | None) -> tuple[int, ...]:
     return periods
 
 
+def parse_csv_values(environment_value: str | None, defaults: tuple[str, ...]) -> tuple[str, ...]:
+    if environment_value is None:
+        return defaults
+    values = tuple(dict.fromkeys(value.strip() for value in environment_value.split(",") if value.strip()))
+    if not values:
+        raise ValueError("Configuration list cannot be empty")
+    return values
+
+
 @dataclass(frozen=True)
 class Settings:
     okx_api_base_url: str
@@ -55,6 +66,8 @@ class Settings:
     moving_average_touch_margin_ratio: float
     send_startup_summary: bool
     ema_periods: tuple[int, ...]
+    dominant_ema_timeframes: tuple[str, ...]
+    dominant_ema_scan_interval_seconds: int
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -90,6 +103,15 @@ class Settings:
                 default_value=DEFAULT_SEND_STARTUP_SUMMARY,
             ),
             ema_periods=parse_positive_periods(os.getenv("EMA_PERIODS")),
+            dominant_ema_timeframes=parse_csv_values(
+                os.getenv("DOMINANT_EMA_TIMEFRAMES"), DEFAULT_DOMINANT_EMA_TIMEFRAMES
+            ),
+            dominant_ema_scan_interval_seconds=int(
+                os.getenv(
+                    "DOMINANT_EMA_SCAN_INTERVAL_SECONDS",
+                    str(DEFAULT_DOMINANT_EMA_SCAN_INTERVAL_SECONDS),
+                )
+            ),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
