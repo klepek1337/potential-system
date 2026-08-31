@@ -61,6 +61,78 @@ class AlertStateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS minute_sma_tilt_state (
+                    instrument_id TEXT PRIMARY KEY,
+                    last_candle_timestamp_ms INTEGER NOT NULL,
+                    last_alert_timestamp_ms INTEGER,
+                    last_alert_direction TEXT,
+                    last_alert_tilt_atr REAL
+                )
+                """
+            )
+
+    def get_minute_sma_tilt_state(
+        self, instrument_id: str
+    ) -> tuple[int, int | None, str | None, float | None] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT last_candle_timestamp_ms, last_alert_timestamp_ms,
+                       last_alert_direction, last_alert_tilt_atr
+                FROM minute_sma_tilt_state
+                WHERE instrument_id = ?
+                """,
+                (instrument_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return (
+            int(row[0]),
+            int(row[1]) if row[1] is not None else None,
+            str(row[2]) if row[2] is not None else None,
+            float(row[3]) if row[3] is not None else None,
+        )
+
+    def save_minute_sma_tilt_state(
+        self,
+        instrument_id: str,
+        candle_timestamp_ms: int,
+        alert_timestamp_ms: int | None,
+        alert_direction: str | None,
+        alert_tilt_atr: float | None,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO minute_sma_tilt_state (
+                    instrument_id, last_candle_timestamp_ms, last_alert_timestamp_ms,
+                    last_alert_direction, last_alert_tilt_atr
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(instrument_id) DO UPDATE SET
+                    last_candle_timestamp_ms=excluded.last_candle_timestamp_ms,
+                    last_alert_timestamp_ms=COALESCE(
+                        excluded.last_alert_timestamp_ms,
+                        minute_sma_tilt_state.last_alert_timestamp_ms
+                    ),
+                    last_alert_direction=COALESCE(
+                        excluded.last_alert_direction,
+                        minute_sma_tilt_state.last_alert_direction
+                    ),
+                    last_alert_tilt_atr=COALESCE(
+                        excluded.last_alert_tilt_atr,
+                        minute_sma_tilt_state.last_alert_tilt_atr
+                    )
+                """,
+                (
+                    instrument_id,
+                    candle_timestamp_ms,
+                    alert_timestamp_ms,
+                    alert_direction,
+                    alert_tilt_atr,
+                ),
+            )
 
     def get_stop_anchor(self, instrument_id: str) -> float | None:
         state = self.get_dominant_ema_state(instrument_id)

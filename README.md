@@ -9,6 +9,10 @@ The scanner watches `SMA 20`, `SMA 50`, `SMA 120`, and `SMA 200` and sends:
 2. one alert when the live H4 candle first touches an average;
 3. one resolution after that candle closes.
 
+An optional one-minute layer also detects sharp ATR-normalized changes in the slope of SMA 20.
+See [`docs/minute-sma-tilt.md`](docs/minute-sma-tilt.md). It is an informational micro-momentum
+warning and does not execute any trading action.
+
 The result depends on the side from which price approached the average:
 
 | Approach | H4 close | Result |
