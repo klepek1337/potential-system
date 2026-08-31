@@ -12,6 +12,7 @@ DEFAULT_STATE_DATABASE_PATH = "data/ma_alerts.sqlite3"
 DEFAULT_POSITIONS_FILE_PATH = "data/positions.json"
 DEFAULT_MOVING_AVERAGE_TOUCH_MARGIN_PERCENT = 0.1
 DEFAULT_SEND_STARTUP_SUMMARY = True
+DEFAULT_EMA_PERIODS = (20, 50, 120, 200)
 MINIMUM_POLL_INTERVAL_SECONDS = 10
 MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
 MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
@@ -34,6 +35,15 @@ def parse_instrument_ids(environment_value: str | None) -> tuple[str, ...]:
     )
 
 
+def parse_positive_periods(environment_value: str | None) -> tuple[int, ...]:
+    if environment_value is None:
+        return DEFAULT_EMA_PERIODS
+    periods = tuple(dict.fromkeys(int(value.strip()) for value in environment_value.split(",") if value.strip()))
+    if not periods or any(period <= 0 for period in periods):
+        raise ValueError("EMA_PERIODS must contain positive integers")
+    return periods
+
+
 @dataclass(frozen=True)
 class Settings:
     okx_api_base_url: str
@@ -44,6 +54,7 @@ class Settings:
     positions_file_path: Path
     moving_average_touch_margin_ratio: float
     send_startup_summary: bool
+    ema_periods: tuple[int, ...]
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -78,6 +89,7 @@ class Settings:
                 os.getenv("SEND_STARTUP_SUMMARY"),
                 default_value=DEFAULT_SEND_STARTUP_SUMMARY,
             ),
+            ema_periods=parse_positive_periods(os.getenv("EMA_PERIODS")),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,

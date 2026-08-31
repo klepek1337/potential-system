@@ -36,13 +36,15 @@ def format_percentage(percentage_value: float) -> str:
 def build_program_started_message(
     instrument_ids: tuple[str, ...],
     touch_margin_ratio: float,
+    ema_periods: tuple[int, ...] = (20, 50, 120, 200),
 ) -> str:
     touch_margin_percent = touch_margin_ratio * RATIO_TO_PERCENT_MULTIPLIER
     return "\n".join(
         (
-            "🚀 OKX SMA scanner uruchomiony",
-            "Interwał: H4",
-            "Średnie: SMA 20, SMA 50, SMA 120, SMA 200",
+            "🚀 Cryptostrata SMA/EMA scanner uruchomiony",
+            "Interwał alertów SMA: H4",
+            "SMA: 20, 50, 120, 200",
+            f"EMA: {', '.join(str(period) for period in ema_periods)}",
             f"Margines kontaktu: {touch_margin_percent:.3g}%",
             f"Instrumenty: {', '.join(instrument_ids)}",
         )
@@ -104,6 +106,24 @@ def build_test_started_message(
             f"{format_local_time(candle_closing_timestamp_ms, timezone_name)}",
         )
     )
+
+
+def build_current_ema_levels_message(
+    instrument_id: str,
+    current_price: float,
+    ema_levels: dict[int, float],
+) -> str:
+    lines = [
+        f"📈 Aktualne poziomy EMA H4 — {instrument_id}",
+        f"Cena: {format_price(current_price)}",
+    ]
+    for period, value in ema_levels.items():
+        distance = (current_price / value - 1.0) * 100.0
+        side = "nad" if distance >= 0 else "pod"
+        lines.append(
+            f"EMA {period}: {format_price(value)} ({abs(distance):.2f}% {side})"
+        )
+    return "\n".join(lines)
 
 
 def build_test_resolved_message(
