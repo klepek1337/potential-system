@@ -52,6 +52,29 @@ SEND_STARTUP_SUMMARY=false
 
 Requirements: Python 3.11 or newer.
 
+### One-command Windows setup and update
+
+Download `install-and-run.ps1`, then run it from PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\install-and-run.ps1
+```
+
+The script clones or safely fast-forwards the latest `main`, creates `.venv`, installs dependencies,
+runs the test suite, and starts the bot. It preserves `.env`, `data/positions.json`, and the SQLite
+database. It stops instead of overwriting a repository containing local changes.
+
+Optional parameters:
+
+```powershell
+.\install-and-run.ps1 -InstallDirectory "D:\Cryptostrata"
+.\install-and-run.ps1 -RunOnce
+.\install-and-run.ps1 -SkipTests
+```
+
+Release history is maintained in [`CHANGELOG.md`](CHANGELOG.md).
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
