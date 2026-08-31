@@ -12,6 +12,11 @@ from ma_alert_bot.models import (
     TestOutcome,
     TiltDirection,
 )
+from ma_alert_bot.version import (
+    CURRENT_RELEASE_CHANGES,
+    CURRENT_RELEASE_TITLE,
+    CURRENT_VERSION,
+)
 
 
 TELEGRAM_API_BASE_URL = "https://api.telegram.org"
@@ -51,9 +56,17 @@ def build_program_started_message(
     minute_sma_tilt_lookback_minutes: int = 5,
 ) -> str:
     touch_margin_percent = touch_margin_ratio * RATIO_TO_PERCENT_MULTIPLIER
+    release_change_lines = tuple(f"• {change}" for change in CURRENT_RELEASE_CHANGES)
     return "\n".join(
         (
-            "🚀 Cryptostrata SMA/EMA scanner uruchomiony",
+            f"🚀 Cryptostrata v{CURRENT_VERSION} uruchomiona",
+            f"Najnowsza aktualizacja: {CURRENT_RELEASE_TITLE}",
+            "",
+            f"🆕 Zmiany w v{CURRENT_VERSION}",
+            *release_change_lines,
+            "",
+            "⚙️ Aktywna konfiguracja",
+            "Moduły: SMA/EMA",
             "Interwał alertów SMA: H4",
             "SMA: 20, 50, 120, 200",
             f"EMA: {', '.join(str(period) for period in ema_periods)}",
