@@ -8,9 +8,11 @@ from ma_alert_bot.analysis import (
     resolve_test_outcome,
 )
 from ma_alert_bot.models import Candle
+from ma_alert_bot.ema_analysis import calculate_latest_ema_levels
 from ma_alert_bot.notifications import (
     TelegramNotifier,
     build_current_levels_message,
+    build_current_ema_levels_message,
     build_program_started_message,
     build_test_resolved_message,
     build_test_started_message,
@@ -30,18 +32,21 @@ class MovingAverageMonitor:
         notifier: TelegramNotifier,
         timezone_name: str,
         touch_margin_ratio: float,
+        ema_periods: tuple[int, ...] = (20, 50, 120, 200),
     ) -> None:
         self._market_data_client = market_data_client
         self._state_store = state_store
         self._notifier = notifier
         self._timezone_name = timezone_name
         self._touch_margin_ratio = touch_margin_ratio
+        self._ema_periods = ema_periods
 
     def send_program_started(self, instrument_ids: tuple[str, ...]) -> None:
         self._notifier.send(
             build_program_started_message(
                 instrument_ids=instrument_ids,
                 touch_margin_ratio=self._touch_margin_ratio,
+                ema_periods=self._ema_periods,
             )
         )
 
@@ -69,6 +74,14 @@ class MovingAverageMonitor:
                 instrument_id=instrument_id,
                 current_price=candles[-1].closing_price,
                 moving_average_levels=moving_average_levels,
+            )
+        )
+        ema_levels = calculate_latest_ema_levels(candles, self._ema_periods)
+        self._notifier.send(
+            build_current_ema_levels_message(
+                instrument_id=instrument_id,
+                current_price=candles[-1].closing_price,
+                ema_levels=ema_levels,
             )
         )
 

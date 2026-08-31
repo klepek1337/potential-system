@@ -2,6 +2,7 @@ import unittest
 
 from ma_alert_bot.notifications import (
     build_current_levels_message,
+    build_current_ema_levels_message,
     build_program_started_message,
 )
 
@@ -14,6 +15,8 @@ class StartupNotificationTests(unittest.TestCase):
         )
 
         self.assertIn("scanner uruchomiony", message)
+        self.assertIn("SMA/EMA", message)
+        self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
         self.assertIn("BTC-USDT-SWAP, ETH-USDT-SWAP", message)
 
@@ -31,6 +34,13 @@ class StartupNotificationTests(unittest.TestCase):
         self.assertIn("SMA 200: 104", message)
         self.assertIn("nad", message)
         self.assertIn("pod", message)
+
+    def test_ema_message_is_separate_from_sma_message(self) -> None:
+        message = build_current_ema_levels_message(
+            "SOL-USDT-SWAP", 105.0, {20: 103.0, 50: 100.0}
+        )
+        self.assertIn("EMA 20", message)
+        self.assertNotIn("SMA 20", message)
 
 
 if __name__ == "__main__":
