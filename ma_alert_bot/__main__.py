@@ -9,6 +9,7 @@ from ma_alert_bot.notifications import TelegramNotifier
 from ma_alert_bot.okx_client import OkxMarketDataClient
 from ma_alert_bot.position_store import PositionStore
 from ma_alert_bot.state_store import AlertStateStore
+from ma_alert_bot.telegram_commands import TelegramCommandPoller
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -94,6 +95,13 @@ def scan_all_instruments(
             logging.exception("Failed to scan %s", instrument_id)
 
 
+def poll_telegram_commands(command_poller: TelegramCommandPoller) -> None:
+    try:
+        command_poller.poll_once()
+    except Exception:
+        logging.exception("Failed to poll Telegram commands")
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     arguments = build_argument_parser().parse_args()
@@ -109,6 +117,17 @@ def main() -> None:
         bot_token=settings.telegram_bot_token,
         chat_id=settings.telegram_chat_id,
         dry_run=settings.dry_run,
+    )
+    command_poller = TelegramCommandPoller(
+        bot_token=settings.telegram_bot_token,
+        allowed_chat_id=settings.telegram_chat_id,
+        market_data_client=market_data_client,
+        notifier=notifier,
+        state_store=state_store,
+        enabled=settings.telegram_commands_enabled and not settings.dry_run,
+        minimum_normalized_histogram_slope=(
+            settings.szpont_minimum_normalized_histogram_slope
+        ),
     )
     monitor = MovingAverageMonitor(
         market_data_client=market_data_client,
@@ -147,6 +166,7 @@ def main() -> None:
 
         is_first_scan = True
         while True:
+            poll_telegram_commands(command_poller)
             scan_all_instruments(
                 monitor,
                 settings.instrument_ids,

@@ -72,6 +72,33 @@ class AlertStateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_state (
+                    state_key TEXT PRIMARY KEY,
+                    state_value TEXT NOT NULL
+                )
+                """
+            )
+
+    def get_runtime_state(self, state_key: str) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT state_value FROM runtime_state WHERE state_key = ?",
+                (state_key,),
+            ).fetchone()
+        return str(row[0]) if row else None
+
+    def save_runtime_state(self, state_key: str, state_value: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO runtime_state (state_key, state_value)
+                VALUES (?, ?)
+                ON CONFLICT(state_key) DO UPDATE SET state_value=excluded.state_value
+                """,
+                (state_key, state_value),
+            )
 
     def get_minute_sma_tilt_state(
         self, instrument_id: str

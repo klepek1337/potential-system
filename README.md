@@ -129,6 +129,39 @@ python -m ma_alert_bot
 4. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`.
 5. Change `DRY_RUN=false`.
 
+### Analiza Szpont na żądanie
+
+Po uruchomieniu bota wyślij w skonfigurowanym czacie lub kanale:
+
+```text
+/szpont BTCUSDT
+```
+
+Możesz również użyć `/szpont BTC-USDT` albo pełnego identyfikatora
+`/szpont BTC-USDT-SWAP`. Bot pobierze z OKX zamknięte świece `1H`, `2H`, `4H`
+i `1D`, a następnie zwróci:
+
+- kierunek oraz zmianę histogramu MACD na każdym interwale;
+- zmianę histogramu znormalizowaną przez ATR;
+- układ SMA 20/50/100/200 i opadające średnie znajdujące się nad ceną;
+- stan synchronizacji, w tym osobne `H4 veto`.
+
+Komendy są przyjmowane wyłącznie z `TELEGRAM_CHAT_ID`. Dla kanału Telegram bot musi
+być jego administratorem, aby otrzymywać `channel_post`. Obsługę można wyłączyć:
+
+```env
+TELEGRAM_COMMANDS_ENABLED=false
+```
+
+Minimalna zmiana histogramu względem ATR jest jawnie konfigurowalna. Mniejsze ruchy
+są klasyfikowane jako kompresja zamiast kierunkowego sygnału:
+
+```env
+SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE=0.001
+```
+
+Analiza jest informacyjna i nie korzysta z uwierzytelnionych endpointów transakcyjnych.
+
 Never commit `.env` or paste the bot token into source code.
 
 ## Docker

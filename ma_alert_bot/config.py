@@ -23,6 +23,8 @@ DEFAULT_MINUTE_SMA_TILT_LOOKBACK_MINUTES = 5
 DEFAULT_MINUTE_SMA_TILT_STRONG_THRESHOLD_ATR = 0.25
 DEFAULT_MINUTE_SMA_TILT_CHANGE_THRESHOLD_ATR = 0.5
 DEFAULT_MINUTE_SMA_TILT_COOLDOWN_SECONDS = 600
+DEFAULT_TELEGRAM_COMMANDS_ENABLED = True
+DEFAULT_SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE = 0.001
 MINIMUM_POLL_INTERVAL_SECONDS = 10
 MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
 MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
@@ -84,6 +86,8 @@ class Settings:
     minute_sma_tilt_strong_threshold_atr: float
     minute_sma_tilt_change_threshold_atr: float
     minute_sma_tilt_cooldown_seconds: int
+    telegram_commands_enabled: bool
+    szpont_minimum_normalized_histogram_slope: float
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -166,6 +170,16 @@ class Settings:
                     str(DEFAULT_MINUTE_SMA_TILT_COOLDOWN_SECONDS),
                 )
             ),
+            telegram_commands_enabled=parse_boolean(
+                os.getenv("TELEGRAM_COMMANDS_ENABLED"),
+                DEFAULT_TELEGRAM_COMMANDS_ENABLED,
+            ),
+            szpont_minimum_normalized_histogram_slope=float(
+                os.getenv(
+                    "SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE",
+                    str(DEFAULT_SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE),
+                )
+            ),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
@@ -200,3 +214,7 @@ class Settings:
             raise ValueError("MINUTE_SMA_TILT_CHANGE_THRESHOLD_ATR must be positive")
         if self.minute_sma_tilt_cooldown_seconds < 60:
             raise ValueError("MINUTE_SMA_TILT_COOLDOWN_SECONDS must be at least 60")
+        if self.szpont_minimum_normalized_histogram_slope <= 0:
+            raise ValueError(
+                "SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE must be positive"
+            )

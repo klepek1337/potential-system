@@ -1,11 +1,11 @@
 """Application version and the release note shown on startup."""
 
 
-CURRENT_VERSION = "1.6.0"
-CURRENT_RELEASE_TITLE = "Czystszy start i SMA 200 Tilt"
+CURRENT_VERSION = "1.7.0"
+CURRENT_RELEASE_TITLE = "Analiza Szpont na żądanie"
 CURRENT_RELEASE_CHANGES = (
-    "osobne sterowanie wiadomością startową i raportami poziomów",
-    "raporty aktualnych SMA/EMA domyślnie wyłączone przy starcie",
-    "tilt 1m zmieniony z SMA 20 na SMA 200",
-    "instalator pozwala zachowac albo odrzucic lokalne zmiany",
+    "komenda /szpont BTCUSDT analizuje zamknięte świece 1H, 2H, 4H i 1D",
+    "H4 może zawetować pozorną synchronizację niższych interwałów",
+    "raport pokazuje MACD histogram, zmianę względem ATR i strukturę SMA",
+    "offset Telegrama jest zapisywany, więc komendy nie powtarzają się po restarcie",
 )

@@ -23,11 +23,11 @@ class StartupNotificationTests(unittest.TestCase):
             include_configuration=True,
         )
 
-        self.assertIn("Cryptostrata v1.6.0 uruchomiona", message)
-        self.assertIn("Najnowsza aktualizacja: Czystszy start i SMA 200 Tilt", message)
-        self.assertIn("Zmiany w v1.6.0", message)
-        self.assertIn("tilt 1m zmieniony z SMA 20 na SMA 200", message)
-        self.assertIn("zachowac albo odrzucic lokalne zmiany", message)
+        self.assertIn("Cryptostrata v1.7.0 uruchomiona", message)
+        self.assertIn("Najnowsza aktualizacja: Analiza Szpont na żądanie", message)
+        self.assertIn("Zmiany w v1.7.0", message)
+        self.assertIn("komenda /szpont BTCUSDT", message)
+        self.assertIn("H4 może zawetować", message)
         self.assertIn("SMA/EMA", message)
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
@@ -41,7 +41,7 @@ class StartupNotificationTests(unittest.TestCase):
             touch_margin_ratio=0.001,
         )
 
-        self.assertIn("Zmiany w v1.6.0", message)
+        self.assertIn("Zmiany w v1.7.0", message)
         self.assertNotIn("Aktywna konfiguracja", message)
         self.assertNotIn("Instrumenty:", message)
 
