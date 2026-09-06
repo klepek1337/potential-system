@@ -3,14 +3,13 @@ import logging
 import time
 
 from ma_alert_bot.config import Settings
-from ma_alert_bot.monitor import MovingAverageMonitor
 from ma_alert_bot.models import ManualPosition, PositionSide
+from ma_alert_bot.monitor import MovingAverageMonitor
 from ma_alert_bot.notifications import TelegramNotifier
 from ma_alert_bot.okx_client import OkxMarketDataClient
 from ma_alert_bot.position_store import PositionStore
 from ma_alert_bot.state_store import AlertStateStore
 from ma_alert_bot.telegram_commands import TelegramCommandPoller
-
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 LOOP_FAILURE_DELAY_SECONDS = 10
@@ -128,6 +127,7 @@ def main() -> None:
         minimum_normalized_histogram_slope=(
             settings.szpont_minimum_normalized_histogram_slope
         ),
+        long_watch_scan_interval_seconds=settings.long_watch_scan_interval_seconds,
     )
     monitor = MovingAverageMonitor(
         market_data_client=market_data_client,
@@ -167,9 +167,13 @@ def main() -> None:
         is_first_scan = True
         while True:
             poll_telegram_commands(command_poller)
+            command_poller.scan_long_watches()
+            active_instrument_ids = command_poller.get_active_instrument_ids(
+                settings.instrument_ids
+            )
             scan_all_instruments(
                 monitor,
-                settings.instrument_ids,
+                active_instrument_ids,
                 include_level_summary=(
                     is_first_scan and settings.send_startup_level_summaries
                 ),

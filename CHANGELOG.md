@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0
+
+- Added `/obserwujlong SYMBOL` with transition-based MACD histogram alerts on 1H/2H/4H/1D.
+- Added ATR-normalized MACD gap, SMA20 price stretch, bullish-leg return and overheat context.
+- Added `/dodaj SYMBOL` and SQLite-backed hot runtime instruments without restarting the bot.
+- Kept every action advisory-only; no authenticated exchange operations were added.
+
 The project follows [Semantic Versioning](https://semver.org/). The version shown in the Telegram
 startup notification is defined once in `ma_alert_bot/version.py`.
 

@@ -1,16 +1,16 @@
 import unittest
 
-from ma_alert_bot.notifications import (
-    build_current_ema_levels_message,
-    build_current_levels_message,
-    build_minute_sma_tilt_message,
-    build_program_started_message,
-)
 from ma_alert_bot.models import (
     ManualPosition,
     MinuteSmaTiltAssessment,
     PositionSide,
     TiltDirection,
+)
+from ma_alert_bot.notifications import (
+    build_current_ema_levels_message,
+    build_current_levels_message,
+    build_minute_sma_tilt_message,
+    build_program_started_message,
 )
 
 
@@ -23,11 +23,11 @@ class StartupNotificationTests(unittest.TestCase):
             include_configuration=True,
         )
 
-        self.assertIn("Cryptostrata v1.7.0 uruchomiona", message)
-        self.assertIn("Najnowsza aktualizacja: Analiza Szpont na żądanie", message)
-        self.assertIn("Zmiany w v1.7.0", message)
-        self.assertIn("komenda /szpont BTCUSDT", message)
-        self.assertIn("H4 może zawetować", message)
+        self.assertIn("Cryptostrata v1.8.0 uruchomiona", message)
+        self.assertIn("Najnowsza aktualizacja: Long Watch i dynamiczne instrumenty", message)
+        self.assertIn("Zmiany w v1.8.0", message)
+        self.assertIn("/obserwujlong BTCUSDT", message)
+        self.assertIn("/dodaj BCHUSDT", message)
         self.assertIn("SMA/EMA", message)
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
@@ -41,7 +41,7 @@ class StartupNotificationTests(unittest.TestCase):
             touch_margin_ratio=0.001,
         )
 
-        self.assertIn("Zmiany w v1.7.0", message)
+        self.assertIn("Zmiany w v1.8.0", message)
         self.assertNotIn("Aktywna konfiguracja", message)
         self.assertNotIn("Instrumenty:", message)
 

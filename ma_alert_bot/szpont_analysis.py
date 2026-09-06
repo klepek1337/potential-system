@@ -4,7 +4,6 @@ from enum import StrEnum
 
 from ma_alert_bot.models import Candle
 
-
 MACD_FAST_PERIOD = 12
 MACD_SLOW_PERIOD = 26
 MACD_SIGNAL_PERIOD = 9
@@ -13,6 +12,11 @@ SIMPLE_MOVING_AVERAGE_PERIODS = (20, 50, 100, 200)
 MINIMUM_CONFIRMED_CANDLES = max(SIMPLE_MOVING_AVERAGE_PERIODS) + 2
 DEFAULT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE = 0.001
 SZPONT_TIMEFRAMES = ("1H", "2H", "4H", "1D")
+HISTOGRAM_PERCENTILE_LOOKBACK = 100
+ELEVATED_PRICE_STRETCH_ATR = 1.25
+HIGH_PRICE_STRETCH_ATR = 2.0
+ELEVATED_HISTOGRAM_PERCENTILE = 75.0
+HIGH_HISTOGRAM_PERCENTILE = 90.0
 
 
 class MomentumState(StrEnum):
@@ -42,6 +46,12 @@ class MovingAverageStructure(StrEnum):
     MIXED = "mixed"
 
 
+class LongOverheatState(StrEnum):
+    NORMAL = "normal"
+    ELEVATED = "elevated"
+    HIGH = "high"
+
+
 @dataclass(frozen=True)
 class TimeframeMomentumAssessment:
     timeframe: str
@@ -53,6 +63,12 @@ class TimeframeMomentumAssessment:
     histogram: float
     previous_histogram: float
     normalized_histogram_slope: float
+    macd_signal_gap_atr: float
+    histogram_percentile: float
+    price_distance_from_sma20_atr: float
+    price_distance_from_sma20_percent: float
+    bullish_leg_return_percent: float | None
+    long_overheat_state: LongOverheatState
     momentum_state: MomentumState
     moving_average_structure: MovingAverageStructure
     moving_average_levels: dict[int, float]
@@ -141,6 +157,48 @@ def calculate_latest_simple_moving_average(
     return sum(closing_prices[-period:]) / period
 
 
+def calculate_percentile_rank(values: Sequence[float], current_value: float) -> float:
+    if not values:
+        return 0.0
+    values_at_or_below = sum(value <= current_value for value in values)
+    return 100.0 * values_at_or_below / len(values)
+
+
+def calculate_bullish_leg_return_percent(
+    closing_prices: Sequence[float], histogram_values: Sequence[float]
+) -> float | None:
+    if not histogram_values or histogram_values[-1] <= 0:
+        return None
+    leg_start_index = 0
+    for index in range(len(histogram_values) - 1, 0, -1):
+        if histogram_values[index - 1] <= 0 < histogram_values[index]:
+            leg_start_index = index
+            break
+    starting_price = closing_prices[leg_start_index]
+    if starting_price <= 0:
+        return None
+    return (closing_prices[-1] / starting_price - 1.0) * 100.0
+
+
+def classify_long_overheat(
+    price_distance_from_sma20_atr: float,
+    histogram_percentile: float,
+    histogram: float,
+) -> LongOverheatState:
+    if price_distance_from_sma20_atr >= HIGH_PRICE_STRETCH_ATR or (
+        histogram > 0
+        and histogram_percentile >= HIGH_HISTOGRAM_PERCENTILE
+        and price_distance_from_sma20_atr >= 1.0
+    ):
+        return LongOverheatState.HIGH
+    if price_distance_from_sma20_atr >= ELEVATED_PRICE_STRETCH_ATR or (
+        histogram > 0
+        and histogram_percentile >= ELEVATED_HISTOGRAM_PERCENTILE
+    ):
+        return LongOverheatState.ELEVATED
+    return LongOverheatState.NORMAL
+
+
 def classify_momentum_state(
     current_histogram: float,
     previous_histogram: float,
@@ -215,6 +273,26 @@ def assess_timeframe(
         for period in SIMPLE_MOVING_AVERAGE_PERIODS
     }
     closing_price = closing_prices[-1]
+    macd_signal_gap_atr = histogram_values[-1] / average_true_range
+    positive_histogram_history = [
+        histogram
+        for histogram in histogram_values[-HISTOGRAM_PERCENTILE_LOOKBACK:]
+        if histogram > 0
+    ]
+    histogram_percentile = (
+        calculate_percentile_rank(positive_histogram_history, histogram_values[-1])
+        if histogram_values[-1] > 0
+        else 0.0
+    )
+    price_distance_from_sma20_atr = (
+        closing_price - moving_average_levels[20]
+    ) / average_true_range
+    price_distance_from_sma20_percent = (
+        closing_price / moving_average_levels[20] - 1.0
+    ) * 100.0
+    bullish_leg_return_percent = calculate_bullish_leg_return_percent(
+        closing_prices, histogram_values
+    )
     overhead_resistance_periods = tuple(
         period
         for period in SIMPLE_MOVING_AVERAGE_PERIODS
@@ -237,6 +315,16 @@ def assess_timeframe(
         histogram=histogram_values[-1],
         previous_histogram=histogram_values[-2],
         normalized_histogram_slope=normalized_histogram_slope,
+        macd_signal_gap_atr=macd_signal_gap_atr,
+        histogram_percentile=histogram_percentile,
+        price_distance_from_sma20_atr=price_distance_from_sma20_atr,
+        price_distance_from_sma20_percent=price_distance_from_sma20_percent,
+        bullish_leg_return_percent=bullish_leg_return_percent,
+        long_overheat_state=classify_long_overheat(
+            price_distance_from_sma20_atr,
+            histogram_percentile,
+            histogram_values[-1],
+        ),
         momentum_state=momentum_state,
         moving_average_structure=classify_moving_average_structure(
             closing_price, moving_average_levels

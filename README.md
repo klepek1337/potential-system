@@ -162,6 +162,42 @@ SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE=0.001
 
 Analiza jest informacyjna i nie korzysta z uwierzytelnionych endpointów transakcyjnych.
 
+### Long Watch i dodawanie instrumentów bez restartu
+
+```text
+/obserwujlong BTCUSDT
+/dodaj BCHUSDT
+```
+
+`/obserwujlong` zapisuje obserwację w SQLite i ustawia bieżące zamknięte świece jako
+punkt bazowy. Od kolejnych zamknięć `1H`, `2H`, `4H` i `1D` wysyła alert tylko wtedy,
+gdy dany histogram przechodzi ze stanu niespadającego w spadający. Kontynuacja spadku
+na następnej świecy nie generuje duplikatu; po odbudowie kolejny zwrot w dół ponownie
+uruchamia alert.
+
+Alert pokazuje:
+
+- MACD, Signal oraz ich różnicę — ta różnica jest histogramem;
+- zmianę histogramu znormalizowaną przez ATR;
+- odległość ceny od SMA20 w procentach i ATR;
+- wzrost ceny od początku bieżącej dodatniej nogi MACD;
+- percentyl histogramu z ostatnich 100 świec i ocenę przegrzania;
+- stan pozostałych interwałów oraz zalecenie ochrony zysku.
+
+`/dodaj` sprawdza instrument na publicznym API OKX i natychmiast dopisuje go do
+aktywnego skanera. Nie modyfikuje pliku `.env`: runtime zapisuje dodatkowe symbole
+w `STATE_DATABASE_PATH`, dzięki czemu zmiana działa bez restartu i przetrwa restart.
+`/obserwujlong` również automatycznie dodaje instrument do aktywnego skanera.
+
+Interwał sprawdzania obserwacji można ustawić w `.env`:
+
+```env
+LONG_WATCH_SCAN_INTERVAL_SECONDS=60
+```
+
+Komendy są advisory-only. Bot nie ma dostępu do prywatnego API OKX i nie może
+zamknąć pozycji, wykonać wypłaty ani złożyć zlecenia.
+
 Never commit `.env` or paste the bot token into source code.
 
 ## Docker

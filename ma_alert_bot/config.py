@@ -4,7 +4,6 @@ from pathlib import Path
 
 from ma_alert_bot.environment import load_environment_file
 
-
 DEFAULT_OKX_API_BASE_URL = "https://www.okx.com"
 DEFAULT_POLL_INTERVAL_SECONDS = 30
 DEFAULT_DISPLAY_TIMEZONE = "Europe/Luxembourg"
@@ -25,6 +24,7 @@ DEFAULT_MINUTE_SMA_TILT_CHANGE_THRESHOLD_ATR = 0.5
 DEFAULT_MINUTE_SMA_TILT_COOLDOWN_SECONDS = 600
 DEFAULT_TELEGRAM_COMMANDS_ENABLED = True
 DEFAULT_SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE = 0.001
+DEFAULT_LONG_WATCH_SCAN_INTERVAL_SECONDS = 60
 MINIMUM_POLL_INTERVAL_SECONDS = 10
 MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
 MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
@@ -50,16 +50,28 @@ def parse_instrument_ids(environment_value: str | None) -> tuple[str, ...]:
 def parse_positive_periods(environment_value: str | None) -> tuple[int, ...]:
     if environment_value is None:
         return DEFAULT_EMA_PERIODS
-    periods = tuple(dict.fromkeys(int(value.strip()) for value in environment_value.split(",") if value.strip()))
+    periods = tuple(
+        dict.fromkeys(
+            int(value.strip())
+            for value in environment_value.split(",")
+            if value.strip()
+        )
+    )
     if not periods or any(period <= 0 for period in periods):
         raise ValueError("EMA_PERIODS must contain positive integers")
     return periods
 
 
-def parse_csv_values(environment_value: str | None, defaults: tuple[str, ...]) -> tuple[str, ...]:
+def parse_csv_values(
+    environment_value: str | None, defaults: tuple[str, ...]
+) -> tuple[str, ...]:
     if environment_value is None:
         return defaults
-    values = tuple(dict.fromkeys(value.strip() for value in environment_value.split(",") if value.strip()))
+    values = tuple(
+        dict.fromkeys(
+            value.strip() for value in environment_value.split(",") if value.strip()
+        )
+    )
     if not values:
         raise ValueError("Configuration list cannot be empty")
     return values
@@ -88,6 +100,7 @@ class Settings:
     minute_sma_tilt_cooldown_seconds: int
     telegram_commands_enabled: bool
     szpont_minimum_normalized_histogram_slope: float
+    long_watch_scan_interval_seconds: int
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -180,6 +193,12 @@ class Settings:
                     str(DEFAULT_SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE),
                 )
             ),
+            long_watch_scan_interval_seconds=int(
+                os.getenv(
+                    "LONG_WATCH_SCAN_INTERVAL_SECONDS",
+                    str(DEFAULT_LONG_WATCH_SCAN_INTERVAL_SECONDS),
+                )
+            ),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
@@ -217,4 +236,9 @@ class Settings:
         if self.szpont_minimum_normalized_histogram_slope <= 0:
             raise ValueError(
                 "SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE must be positive"
+            )
+        if self.long_watch_scan_interval_seconds < MINIMUM_POLL_INTERVAL_SECONDS:
+            raise ValueError(
+                "LONG_WATCH_SCAN_INTERVAL_SECONDS must be at least "
+                f"{MINIMUM_POLL_INTERVAL_SECONDS}"
             )

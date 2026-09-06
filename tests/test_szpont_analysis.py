@@ -3,13 +3,14 @@ from types import SimpleNamespace
 
 from ma_alert_bot.models import Candle
 from ma_alert_bot.szpont_analysis import (
+    LongOverheatState,
     MomentumState,
     SynchronizationState,
     assess_timeframe,
+    classify_long_overheat,
     classify_momentum_state,
     determine_synchronization_state,
 )
-
 
 ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000
 TEST_AVERAGE_TRUE_RANGE = 10.0
@@ -50,6 +51,12 @@ def momentum(momentum_state: MomentumState) -> SimpleNamespace:
 
 
 class MomentumClassificationTests(unittest.TestCase):
+    def test_high_price_stretch_marks_long_as_overheated(self) -> None:
+        self.assertEqual(
+            classify_long_overheat(2.1, 50.0, 0.1),
+            LongOverheatState.HIGH,
+        )
+
     def test_positive_but_falling_histogram_is_bullish_deceleration(self) -> None:
         state, normalized_slope = classify_momentum_state(
             current_histogram=0.10,
@@ -90,6 +97,14 @@ class MomentumClassificationTests(unittest.TestCase):
         )
         self.assertEqual(
             confirmed_assessment.histogram, open_move_assessment.histogram
+        )
+        self.assertAlmostEqual(
+            confirmed_assessment.macd_line - confirmed_assessment.signal_line,
+            confirmed_assessment.histogram,
+        )
+        self.assertAlmostEqual(
+            confirmed_assessment.macd_signal_gap_atr,
+            confirmed_assessment.histogram / confirmed_assessment.average_true_range,
         )
 
 
