@@ -198,6 +198,35 @@ LONG_WATCH_SCAN_INTERVAL_SECONDS=60
 Komendy są advisory-only. Bot nie ma dostępu do prywatnego API OKX i nie może
 zamknąć pozycji, wykonać wypłaty ani złożyć zlecenia.
 
+### Radar wszystkich perpetual
+
+Co godzinę, 90 sekund po zamknięciu świecy, bot pobiera listę aktywnych perpetual
+USDT z OKX. Najpierw odrzuca instrumenty z małym obrotem, szerokim spreadem albo
+historią krótszą niż siedem dni. Dla pozostałych liczy wyłącznie zamknięte świece
+`1H`, `2H`, `4H` oraz `1D` i wysyła tylko nowe przejścia do jednego z trzech stanów:
+
+- `BUILDING`: 1H i 2H rosną, H4 jest neutralny lub się odbudowuje, brak skrajnego
+  rozciągnięcia niższych interwałów;
+- `STRONG`: 1H, 2H i 4H rosną, D1 nie przeczy, filtr SMA H4 i płynność przechodzą;
+- `A+ FULL SYNC`: wszystkie cztery histogramy rosną, H4 i SMA przechodzą, brak
+  przegrzania, a wzrost trwa co najmniej dwie zamknięte świece na każdym interwale.
+
+Stan jest zapisywany w SQLite. Ten sam symbol i ten sam poziom nie są ponownie
+wysyłane; brak setupu nie generuje wiadomości. Wszystkie nowe setupy z jednego
+skanu trafiają do raportu zbiorczego (dzielonego tylko przy limicie Telegrama).
+
+Progi można ustawić w `.env`:
+
+```env
+MARKET_RADAR_ENABLED=true
+MARKET_RADAR_MINIMUM_24H_NOTIONAL_USDT=5000000
+MARKET_RADAR_MAXIMUM_SPREAD_PERCENT=0.30
+MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS=7
+MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS=90
+MARKET_RADAR_REQUEST_DELAY_SECONDS=0.12
+MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES=2
+```
+
 Never commit `.env` or paste the bot token into source code.
 
 ## Docker

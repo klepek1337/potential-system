@@ -25,6 +25,13 @@ DEFAULT_MINUTE_SMA_TILT_COOLDOWN_SECONDS = 600
 DEFAULT_TELEGRAM_COMMANDS_ENABLED = True
 DEFAULT_SZPONT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE = 0.001
 DEFAULT_LONG_WATCH_SCAN_INTERVAL_SECONDS = 60
+DEFAULT_MARKET_RADAR_ENABLED = True
+DEFAULT_MARKET_RADAR_MINIMUM_24H_NOTIONAL_USDT = 5_000_000.0
+DEFAULT_MARKET_RADAR_MAXIMUM_SPREAD_PERCENT = 0.30
+DEFAULT_MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS = 7
+DEFAULT_MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS = 90
+DEFAULT_MARKET_RADAR_REQUEST_DELAY_SECONDS = 0.12
+DEFAULT_MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES = 2
 MINIMUM_POLL_INTERVAL_SECONDS = 10
 MINIMUM_TOUCH_MARGIN_PERCENT = 0.0
 MAXIMUM_TOUCH_MARGIN_PERCENT = 5.0
@@ -101,6 +108,13 @@ class Settings:
     telegram_commands_enabled: bool
     szpont_minimum_normalized_histogram_slope: float
     long_watch_scan_interval_seconds: int
+    market_radar_enabled: bool
+    market_radar_minimum_24h_notional_usdt: float
+    market_radar_maximum_spread_ratio: float
+    market_radar_minimum_listing_age_days: int
+    market_radar_candle_confirmation_delay_seconds: int
+    market_radar_request_delay_seconds: float
+    market_radar_full_sync_confirmation_candles: int
     dry_run: bool
     telegram_bot_token: str | None
     telegram_chat_id: str | None
@@ -199,6 +213,48 @@ class Settings:
                     str(DEFAULT_LONG_WATCH_SCAN_INTERVAL_SECONDS),
                 )
             ),
+            market_radar_enabled=parse_boolean(
+                os.getenv("MARKET_RADAR_ENABLED"), DEFAULT_MARKET_RADAR_ENABLED
+            ),
+            market_radar_minimum_24h_notional_usdt=float(
+                os.getenv(
+                    "MARKET_RADAR_MINIMUM_24H_NOTIONAL_USDT",
+                    str(DEFAULT_MARKET_RADAR_MINIMUM_24H_NOTIONAL_USDT),
+                )
+            ),
+            market_radar_maximum_spread_ratio=(
+                float(
+                    os.getenv(
+                        "MARKET_RADAR_MAXIMUM_SPREAD_PERCENT",
+                        str(DEFAULT_MARKET_RADAR_MAXIMUM_SPREAD_PERCENT),
+                    )
+                )
+                / PERCENT_TO_RATIO_DIVISOR
+            ),
+            market_radar_minimum_listing_age_days=int(
+                os.getenv(
+                    "MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS",
+                    str(DEFAULT_MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS),
+                )
+            ),
+            market_radar_candle_confirmation_delay_seconds=int(
+                os.getenv(
+                    "MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS",
+                    str(DEFAULT_MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS),
+                )
+            ),
+            market_radar_request_delay_seconds=float(
+                os.getenv(
+                    "MARKET_RADAR_REQUEST_DELAY_SECONDS",
+                    str(DEFAULT_MARKET_RADAR_REQUEST_DELAY_SECONDS),
+                )
+            ),
+            market_radar_full_sync_confirmation_candles=int(
+                os.getenv(
+                    "MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES",
+                    str(DEFAULT_MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES),
+                )
+            ),
             dry_run=parse_boolean(os.getenv("DRY_RUN"), default_value=True),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
@@ -241,4 +297,20 @@ class Settings:
             raise ValueError(
                 "LONG_WATCH_SCAN_INTERVAL_SECONDS must be at least "
                 f"{MINIMUM_POLL_INTERVAL_SECONDS}"
+            )
+        if self.market_radar_minimum_24h_notional_usdt <= 0:
+            raise ValueError("MARKET_RADAR_MINIMUM_24H_NOTIONAL_USDT must be positive")
+        if self.market_radar_maximum_spread_ratio <= 0:
+            raise ValueError("MARKET_RADAR_MAXIMUM_SPREAD_PERCENT must be positive")
+        if self.market_radar_minimum_listing_age_days < 0:
+            raise ValueError("MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS cannot be negative")
+        if not 0 <= self.market_radar_candle_confirmation_delay_seconds < 3600:
+            raise ValueError(
+                "MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS must be 0-3599"
+            )
+        if self.market_radar_request_delay_seconds < 0:
+            raise ValueError("MARKET_RADAR_REQUEST_DELAY_SECONDS cannot be negative")
+        if self.market_radar_full_sync_confirmation_candles < 2:
+            raise ValueError(
+                "MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES must be at least 2"
             )

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.0
+
+- Added an hourly radar over all live OKX USDT perpetual swaps.
+- Added exactly three transition alerts: `BUILDING`, `STRONG`, and `A+ FULL SYNC`.
+- Made rising H4 mandatory for `STRONG` and `A+`; H4 neutral/recovery is only `BUILDING`.
+- Added liquidity, spread, listing-age, SMA, overheat, and multi-candle confirmation filters.
+- Batched new setups into Telegram reports and persisted signal state to suppress repeats.
+
 ## 1.8.0
 
 - Added `/obserwujlong SYMBOL` with transition-based MACD histogram alerts on 1H/2H/4H/1D.

@@ -12,6 +12,7 @@ from ma_alert_bot.notifications import (
     build_minute_sma_tilt_message,
     build_program_started_message,
 )
+from ma_alert_bot.version import CURRENT_RELEASE_TITLE, CURRENT_VERSION
 
 
 class StartupNotificationTests(unittest.TestCase):
@@ -23,11 +24,11 @@ class StartupNotificationTests(unittest.TestCase):
             include_configuration=True,
         )
 
-        self.assertIn("Cryptostrata v1.8.0 uruchomiona", message)
-        self.assertIn("Najnowsza aktualizacja: Long Watch i dynamiczne instrumenty", message)
-        self.assertIn("Zmiany w v1.8.0", message)
-        self.assertIn("/obserwujlong BTCUSDT", message)
-        self.assertIn("/dodaj BCHUSDT", message)
+        self.assertIn(f"Cryptostrata v{CURRENT_VERSION} uruchomiona", message)
+        self.assertIn(f"Najnowsza aktualizacja: {CURRENT_RELEASE_TITLE}", message)
+        self.assertIn(f"Zmiany w v{CURRENT_VERSION}", message)
+        self.assertIn("BUILDING, STRONG i A+ FULL SYNC", message)
+        self.assertIn("H4 jest obowiązkowym filtrem", message)
         self.assertIn("SMA/EMA", message)
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)
@@ -41,7 +42,7 @@ class StartupNotificationTests(unittest.TestCase):
             touch_margin_ratio=0.001,
         )
 
-        self.assertIn("Zmiany w v1.8.0", message)
+        self.assertIn(f"Zmiany w v{CURRENT_VERSION}", message)
         self.assertNotIn("Aktywna konfiguracja", message)
         self.assertNotIn("Instrumenty:", message)
 

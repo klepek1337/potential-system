@@ -62,6 +62,7 @@ class TimeframeMomentumAssessment:
     signal_line: float
     histogram: float
     previous_histogram: float
+    consecutive_rising_histogram_candles: int
     normalized_histogram_slope: float
     macd_signal_gap_atr: float
     histogram_percentile: float
@@ -178,6 +179,24 @@ def calculate_bullish_leg_return_percent(
     if starting_price <= 0:
         return None
     return (closing_prices[-1] / starting_price - 1.0) * 100.0
+
+
+def count_consecutive_rising_histogram_candles(
+    histogram_values: Sequence[float],
+    average_true_range: float,
+    minimum_normalized_histogram_slope: float,
+) -> int:
+    consecutive_candles = 0
+    for current_histogram, previous_histogram in reversed(
+        tuple(zip(histogram_values[1:], histogram_values[:-1], strict=True))
+    ):
+        normalized_slope = (
+            current_histogram - previous_histogram
+        ) / average_true_range
+        if normalized_slope < minimum_normalized_histogram_slope:
+            break
+        consecutive_candles += 1
+    return consecutive_candles
 
 
 def classify_long_overheat(
@@ -314,6 +333,13 @@ def assess_timeframe(
         signal_line=signal_values[-1],
         histogram=histogram_values[-1],
         previous_histogram=histogram_values[-2],
+        consecutive_rising_histogram_candles=(
+            count_consecutive_rising_histogram_candles(
+                histogram_values,
+                average_true_range,
+                minimum_normalized_histogram_slope,
+            )
+        ),
         normalized_histogram_slope=normalized_histogram_slope,
         macd_signal_gap_atr=macd_signal_gap_atr,
         histogram_percentile=histogram_percentile,

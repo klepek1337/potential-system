@@ -3,6 +3,7 @@ import logging
 import time
 
 from ma_alert_bot.config import Settings
+from ma_alert_bot.market_radar import MarketRadar
 from ma_alert_bot.models import ManualPosition, PositionSide
 from ma_alert_bot.monitor import MovingAverageMonitor
 from ma_alert_bot.notifications import TelegramNotifier
@@ -151,12 +152,34 @@ def main() -> None:
         minute_sma_tilt_cooldown_seconds=settings.minute_sma_tilt_cooldown_seconds,
         send_startup_configuration=settings.send_startup_configuration,
     )
+    market_radar = MarketRadar(
+        market_data_client=market_data_client,
+        state_store=state_store,
+        notifier=notifier,
+        enabled=settings.market_radar_enabled,
+        minimum_normalized_histogram_slope=(
+            settings.szpont_minimum_normalized_histogram_slope
+        ),
+        minimum_quote_notional_24h=(
+            settings.market_radar_minimum_24h_notional_usdt
+        ),
+        maximum_spread_ratio=settings.market_radar_maximum_spread_ratio,
+        minimum_listing_age_days=settings.market_radar_minimum_listing_age_days,
+        candle_confirmation_delay_seconds=(
+            settings.market_radar_candle_confirmation_delay_seconds
+        ),
+        request_delay_seconds=settings.market_radar_request_delay_seconds,
+        full_sync_confirmation_candles=(
+            settings.market_radar_full_sync_confirmation_candles
+        ),
+    )
 
     try:
         if settings.send_startup_summary:
             monitor.send_program_started(settings.instrument_ids)
 
         if arguments.once:
+            market_radar.scan_if_due()
             scan_all_instruments(
                 monitor,
                 settings.instrument_ids,
@@ -168,6 +191,7 @@ def main() -> None:
         while True:
             poll_telegram_commands(command_poller)
             command_poller.scan_long_watches()
+            market_radar.scan_if_due()
             active_instrument_ids = command_poller.get_active_instrument_ids(
                 settings.instrument_ids
             )
