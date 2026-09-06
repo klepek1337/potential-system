@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.2
+
+- Reduced the market radar's minimum confirmed D1 history from 202 to 60 candles.
+- Calculated only available SMA20/SMA50 levels for shortened D1 history.
+- Kept the full 202-candle requirement for 1H, 2H, and 4H assessments.
+- Silently excluded instruments younger than 60 days and downgraded residual short-history
+  failures to informational log entries.
+
 ## 1.9.1
 
 - Required a rising MACD histogram on 1H, 2H, 4H, and 1D for every radar signal.

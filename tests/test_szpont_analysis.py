@@ -107,6 +107,16 @@ class MomentumClassificationTests(unittest.TestCase):
             confirmed_assessment.histogram / confirmed_assessment.average_true_range,
         )
 
+    def test_daily_radar_can_use_sixty_candles_and_available_averages(self) -> None:
+        assessment = assess_timeframe(
+            "1D",
+            build_trending_candles(60),
+            minimum_confirmed_candles=60,
+        )
+
+        self.assertEqual(set(assessment.moving_average_levels), {20, 50})
+        self.assertEqual(set(assessment.moving_average_slopes), {20, 50})
+
 
 class SynchronizationTests(unittest.TestCase):
     def test_h4_deceleration_vetoes_bullish_one_and_two_hour_states(self) -> None:

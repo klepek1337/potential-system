@@ -202,7 +202,7 @@ zamknąć pozycji, wykonać wypłaty ani złożyć zlecenia.
 
 Co godzinę, 90 sekund po zamknięciu świecy, bot pobiera listę aktywnych perpetual
 USDT z OKX. Najpierw odrzuca instrumenty z małym obrotem, szerokim spreadem albo
-historią krótszą niż siedem dni. Dla pozostałych liczy wyłącznie zamknięte świece
+historią krótszą niż 60 dni. Dla pozostałych liczy wyłącznie zamknięte świece
 `1H`, `2H`, `4H` oraz `1D` i wysyła tylko nowe przejścia do jednego z trzech stanów:
 
 - `BUILDING`: histogramy 1H, 2H, 4H i 1D jednocześnie rosną, ale H4 lub D1 nie ma
@@ -226,7 +226,7 @@ Progi można ustawić w `.env`:
 MARKET_RADAR_ENABLED=true
 MARKET_RADAR_MINIMUM_24H_NOTIONAL_USDT=5000000
 MARKET_RADAR_MAXIMUM_SPREAD_PERCENT=0.30
-MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS=7
+MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS=60
 MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS=90
 MARKET_RADAR_REQUEST_DELAY_SECONDS=0.12
 MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES=2

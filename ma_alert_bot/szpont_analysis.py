@@ -10,6 +10,11 @@ MACD_SIGNAL_PERIOD = 9
 AVERAGE_TRUE_RANGE_PERIOD = 14
 SIMPLE_MOVING_AVERAGE_PERIODS = (20, 50, 100, 200)
 MINIMUM_CONFIRMED_CANDLES = max(SIMPLE_MOVING_AVERAGE_PERIODS) + 2
+MINIMUM_SUPPORTED_CONFIRMED_CANDLES = max(
+    AVERAGE_TRUE_RANGE_PERIOD + 1,
+    MACD_SLOW_PERIOD + MACD_SIGNAL_PERIOD,
+    min(SIMPLE_MOVING_AVERAGE_PERIODS) + 1,
+)
 DEFAULT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE = 0.001
 SZPONT_TIMEFRAMES = ("1H", "2H", "4H", "1D")
 HISTOGRAM_PERCENTILE_LOOKBACK = 100
@@ -247,7 +252,11 @@ def classify_momentum_state(
 def classify_moving_average_structure(
     closing_price: float, moving_average_levels: dict[int, float]
 ) -> MovingAverageStructure:
-    ordered_periods = SIMPLE_MOVING_AVERAGE_PERIODS
+    ordered_periods = tuple(
+        period
+        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        if period in moving_average_levels
+    )
     ordered_values = [moving_average_levels[period] for period in ordered_periods]
     if closing_price > max(ordered_values) and ordered_values == sorted(
         ordered_values, reverse=True
@@ -264,11 +273,17 @@ def assess_timeframe(
     minimum_normalized_histogram_slope: float = (
         DEFAULT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE
     ),
+    minimum_confirmed_candles: int = MINIMUM_CONFIRMED_CANDLES,
 ) -> TimeframeMomentumAssessment:
-    confirmed_candles = [candle for candle in candles if candle.is_confirmed]
-    if len(confirmed_candles) < MINIMUM_CONFIRMED_CANDLES:
+    if minimum_confirmed_candles < MINIMUM_SUPPORTED_CONFIRMED_CANDLES:
         raise ValueError(
-            f"{timeframe} requires at least {MINIMUM_CONFIRMED_CANDLES} confirmed candles"
+            "minimum_confirmed_candles must be at least "
+            f"{MINIMUM_SUPPORTED_CONFIRMED_CANDLES}"
+        )
+    confirmed_candles = [candle for candle in candles if candle.is_confirmed]
+    if len(confirmed_candles) < minimum_confirmed_candles:
+        raise ValueError(
+            f"{timeframe} requires at least {minimum_confirmed_candles} confirmed candles"
         )
     closing_prices = [candle.closing_price for candle in confirmed_candles]
     macd_values, signal_values, histogram_values = calculate_macd_series(closing_prices)
@@ -279,17 +294,22 @@ def assess_timeframe(
         average_true_range,
         minimum_normalized_histogram_slope,
     )
+    available_moving_average_periods = tuple(
+        period
+        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        if period <= len(closing_prices) - 1
+    )
     moving_average_levels = {
         period: calculate_latest_simple_moving_average(closing_prices, period)
-        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        for period in available_moving_average_periods
     }
     previous_moving_average_levels = {
         period: calculate_latest_simple_moving_average(closing_prices[:-1], period)
-        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        for period in available_moving_average_periods
     }
     moving_average_slopes = {
         period: moving_average_levels[period] - previous_moving_average_levels[period]
-        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        for period in available_moving_average_periods
     }
     closing_price = closing_prices[-1]
     macd_signal_gap_atr = histogram_values[-1] / average_true_range
@@ -314,13 +334,13 @@ def assess_timeframe(
     )
     overhead_resistance_periods = tuple(
         period
-        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        for period in available_moving_average_periods
         if moving_average_levels[period] > closing_price
         and moving_average_slopes[period] <= 0
     )
     underlying_support_periods = tuple(
         period
-        for period in SIMPLE_MOVING_AVERAGE_PERIODS
+        for period in available_moving_average_periods
         if moving_average_levels[period] < closing_price
         and moving_average_slopes[period] >= 0
     )

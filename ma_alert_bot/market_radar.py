@@ -25,6 +25,8 @@ MILLISECONDS_PER_DAY = 86_400_000
 SECONDS_PER_HOUR = 3_600
 SMA_FILTER_PERIOD = 20
 TELEGRAM_SAFE_MESSAGE_LENGTH = 3_900
+MINIMUM_DAILY_CONFIRMED_CANDLES = 60
+DAILY_TIMEFRAME = "1D"
 RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v2:last_scan_slot"
 RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v2:signal:"
 
@@ -61,6 +63,10 @@ class MarketRadarCandidate:
     assessments_by_timeframe: dict[str, TimeframeMomentumAssessment]
     quote_notional_24h: float
     spread_ratio: float
+
+
+class InsufficientRadarHistoryError(ValueError):
+    pass
 
 
 def passes_bullish_h4_moving_average_filter(
@@ -263,7 +269,10 @@ class MarketRadar:
             instruments,
             tickers,
             int(current_time.timestamp() * 1000),
-            self._minimum_listing_age_days,
+            max(
+                self._minimum_listing_age_days,
+                MINIMUM_DAILY_CONFIRMED_CANDLES,
+            ),
             self._minimum_quote_notional_24h,
             self._maximum_spread_ratio,
         )
@@ -275,6 +284,13 @@ class MarketRadar:
                 signal = classify_market_radar_signal(
                     assessments, self._full_sync_confirmation_candles
                 )
+            except InsufficientRadarHistoryError as error:
+                LOGGER.info(
+                    "Market radar skipped %s: %s",
+                    instrument.instrument_id,
+                    error,
+                )
+                continue
             except Exception:
                 LOGGER.exception("Market radar failed for %s", instrument.instrument_id)
                 continue
@@ -305,10 +321,24 @@ class MarketRadar:
         assessments = {}
         for timeframe in SZPONT_TIMEFRAMES:
             candles = self._market_data_client.get_candles(instrument_id, timeframe)
+            if timeframe != DAILY_TIMEFRAME:
+                assessments[timeframe] = assess_timeframe(
+                    timeframe,
+                    candles,
+                    self._minimum_normalized_histogram_slope,
+                )
+                continue
+            confirmed_candle_count = sum(candle.is_confirmed for candle in candles)
+            if confirmed_candle_count < MINIMUM_DAILY_CONFIRMED_CANDLES:
+                raise InsufficientRadarHistoryError(
+                    f"1D has {confirmed_candle_count}/"
+                    f"{MINIMUM_DAILY_CONFIRMED_CANDLES} confirmed candles"
+                )
             assessments[timeframe] = assess_timeframe(
                 timeframe,
                 candles,
                 self._minimum_normalized_histogram_slope,
+                minimum_confirmed_candles=MINIMUM_DAILY_CONFIRMED_CANDLES,
             )
             if self._request_delay_seconds > 0:
                 time.sleep(self._request_delay_seconds)
