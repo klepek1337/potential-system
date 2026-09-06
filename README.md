@@ -205,11 +205,16 @@ USDT z OKX. Najpierw odrzuca instrumenty z małym obrotem, szerokim spreadem alb
 historią krótszą niż siedem dni. Dla pozostałych liczy wyłącznie zamknięte świece
 `1H`, `2H`, `4H` oraz `1D` i wysyła tylko nowe przejścia do jednego z trzech stanów:
 
-- `BUILDING`: 1H i 2H rosną, H4 jest neutralny lub się odbudowuje, brak skrajnego
-  rozciągnięcia niższych interwałów;
-- `STRONG`: 1H, 2H i 4H rosną, D1 nie przeczy, filtr SMA H4 i płynność przechodzą;
-- `A+ FULL SYNC`: wszystkie cztery histogramy rosną, H4 i SMA przechodzą, brak
-  przegrzania, a wzrost trwa co najmniej dwie zamknięte świece na każdym interwale.
+- `BUILDING`: histogramy 1H, 2H, 4H i 1D jednocześnie rosną, ale H4 lub D1 nie ma
+  jeszcze wymaganej liczby potwierdzonych zamknięć;
+- `STRONG`: wszystkie cztery histogramy rosną, a H4 i D1 robią to przez minimum
+  dwie zamknięte świece; ich wartości mogą nadal znajdować się pod zerem;
+- `A+ FULL SYNC`: wszystkie cztery histogramy rosną przez minimum dwie zamknięte
+  świece, filtr SMA H4 przechodzi i cena nie jest przegrzana.
+
+Znak histogramu nie decyduje o synchronizacji. `bearish_recovery`, czyli ujemny,
+ale rosnący histogram, przechodzi. Dodatni histogram, który zaczyna maleć, blokuje
+sygnał. Skrajne rozciągnięcie ceny blokuje wszystkie trzy poziomy.
 
 Stan jest zapisywany w SQLite. Ten sam symbol i ten sam poziom nie są ponownie
 wysyłane; brak setupu nie generuje wiadomości. Wszystkie nowe setupy z jednego

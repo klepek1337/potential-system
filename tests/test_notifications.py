@@ -12,7 +12,11 @@ from ma_alert_bot.notifications import (
     build_minute_sma_tilt_message,
     build_program_started_message,
 )
-from ma_alert_bot.version import CURRENT_RELEASE_TITLE, CURRENT_VERSION
+from ma_alert_bot.version import (
+    CURRENT_RELEASE_CHANGES,
+    CURRENT_RELEASE_TITLE,
+    CURRENT_VERSION,
+)
 
 
 class StartupNotificationTests(unittest.TestCase):
@@ -27,8 +31,8 @@ class StartupNotificationTests(unittest.TestCase):
         self.assertIn(f"Cryptostrata v{CURRENT_VERSION} uruchomiona", message)
         self.assertIn(f"Najnowsza aktualizacja: {CURRENT_RELEASE_TITLE}", message)
         self.assertIn(f"Zmiany w v{CURRENT_VERSION}", message)
-        self.assertIn("BUILDING, STRONG i A+ FULL SYNC", message)
-        self.assertIn("H4 jest obowiązkowym filtrem", message)
+        for release_change in CURRENT_RELEASE_CHANGES:
+            self.assertIn(release_change, message)
         self.assertIn("SMA/EMA", message)
         self.assertIn("EMA: 20, 50, 120, 200", message)
         self.assertIn("0.1%", message)

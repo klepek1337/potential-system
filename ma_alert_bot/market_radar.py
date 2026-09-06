@@ -25,8 +25,8 @@ MILLISECONDS_PER_DAY = 86_400_000
 SECONDS_PER_HOUR = 3_600
 SMA_FILTER_PERIOD = 20
 TELEGRAM_SAFE_MESSAGE_LENGTH = 3_900
-RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:last_scan_slot"
-RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:signal:"
+RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v2:last_scan_slot"
+RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v2:signal:"
 
 RISING_MOMENTUM_STATES = frozenset(
     {
@@ -35,15 +35,6 @@ RISING_MOMENTUM_STATES = frozenset(
         MomentumState.BULLISH_EXPANSION,
     }
 )
-FALLING_MOMENTUM_STATES = frozenset(
-    {
-        MomentumState.BULLISH_DECELERATION,
-        MomentumState.BEARISH_CROSS,
-        MomentumState.BEARISH_EXPANSION,
-    }
-)
-
-
 class MessageSender(Protocol):
     def send(self, message: str) -> None: ...
 
@@ -108,42 +99,21 @@ def classify_market_radar_signal(
     )
     h4_sma_filter_passes = passes_bullish_h4_moving_average_filter(four_hour)
 
-    if (
-        all_rising
-        and full_sync_confirmed
-        and price_not_overheated
-        and h4_sma_filter_passes
-    ):
+    if not all_rising or not price_not_overheated:
+        return MarketRadarSignal.NONE
+
+    if full_sync_confirmed and h4_sma_filter_passes:
         return MarketRadarSignal.FULL_SYNC
 
-    lower_timeframes_rising = all(
-        assessment.momentum_state in RISING_MOMENTUM_STATES
-        for assessment in (one_hour, two_hour)
+    higher_timeframes_confirmed = all(
+        assessment.consecutive_rising_histogram_candles
+        >= full_sync_confirmation_candles
+        for assessment in (four_hour, daily)
     )
-    if (
-        lower_timeframes_rising
-        and four_hour.momentum_state in RISING_MOMENTUM_STATES
-        and daily.momentum_state not in FALLING_MOMENTUM_STATES
-        and h4_sma_filter_passes
-    ):
+    if higher_timeframes_confirmed:
         return MarketRadarSignal.STRONG
 
-    h4_is_neutral_or_recovering = four_hour.momentum_state in {
-        MomentumState.NEUTRAL_COMPRESSION,
-        MomentumState.BEARISH_RECOVERY,
-    }
-    lower_timeframes_not_extreme = all(
-        assessment.long_overheat_state is not LongOverheatState.HIGH
-        for assessment in (one_hour, two_hour)
-    )
-    if (
-        lower_timeframes_rising
-        and h4_is_neutral_or_recovering
-        and lower_timeframes_not_extreme
-    ):
-        return MarketRadarSignal.BUILDING
-
-    return MarketRadarSignal.NONE
+    return MarketRadarSignal.BUILDING
 
 
 def select_eligible_instruments(

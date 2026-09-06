@@ -40,29 +40,58 @@ def assessment(
 
 
 class MarketRadarClassificationTests(unittest.TestCase):
-    def test_building_accepts_neutral_h4(self) -> None:
+    def test_building_requires_every_histogram_to_rise_regardless_of_sign(self) -> None:
         signal = classify_market_radar_signal(
             {
-                "1H": assessment(MomentumState.BEARISH_RECOVERY),
-                "2H": assessment(MomentumState.BULLISH_CROSS),
-                "4H": assessment(MomentumState.NEUTRAL_COMPRESSION),
-                "1D": assessment(MomentumState.BEARISH_EXPANSION),
+                "1H": assessment(MomentumState.BULLISH_CROSS, confirmation_candles=1),
+                "2H": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
+                "4H": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
+                "1D": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
             },
             full_sync_confirmation_candles=2,
         )
         self.assertEqual(signal, MarketRadarSignal.BUILDING)
 
-    def test_strong_requires_rising_h4_and_non_falling_daily(self) -> None:
+    def test_strong_requires_confirmed_rising_h4_and_daily(self) -> None:
         signal = classify_market_radar_signal(
             {
-                "1H": assessment(MomentumState.BULLISH_EXPANSION),
-                "2H": assessment(MomentumState.BEARISH_RECOVERY),
-                "4H": assessment(MomentumState.BULLISH_EXPANSION),
-                "1D": assessment(MomentumState.NEUTRAL_COMPRESSION),
+                "1H": assessment(MomentumState.BULLISH_CROSS, confirmation_candles=1),
+                "2H": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
+                "4H": assessment(
+                    MomentumState.BEARISH_RECOVERY,
+                    close=99.0,
+                    sma20=100.0,
+                    sma20_slope=-1.0,
+                ),
+                "1D": assessment(MomentumState.BEARISH_RECOVERY),
             },
             full_sync_confirmation_candles=2,
         )
         self.assertEqual(signal, MarketRadarSignal.STRONG)
+
+    def test_daily_neutral_histogram_vetoes_all_alerts(self) -> None:
+        signal = classify_market_radar_signal(
+            {
+                "1H": assessment(MomentumState.BULLISH_EXPANSION),
+                "2H": assessment(MomentumState.BULLISH_EXPANSION),
+                "4H": assessment(MomentumState.BEARISH_RECOVERY),
+                "1D": assessment(MomentumState.NEUTRAL_COMPRESSION),
+            },
+            full_sync_confirmation_candles=2,
+        )
+        self.assertEqual(signal, MarketRadarSignal.NONE)
+
+    def test_positive_but_falling_daily_histogram_vetoes_all_alerts(self) -> None:
+        signal = classify_market_radar_signal(
+            {
+                "1H": assessment(MomentumState.BULLISH_EXPANSION),
+                "2H": assessment(MomentumState.BULLISH_EXPANSION),
+                "4H": assessment(MomentumState.BEARISH_RECOVERY),
+                "1D": assessment(MomentumState.BULLISH_DECELERATION),
+            },
+            full_sync_confirmation_candles=2,
+        )
+        self.assertEqual(signal, MarketRadarSignal.NONE)
 
     def test_h4_deceleration_vetoes_all_alerts(self) -> None:
         signal = classify_market_radar_signal(
@@ -96,7 +125,19 @@ class MarketRadarClassificationTests(unittest.TestCase):
             MarketRadarSignal.FULL_SYNC,
         )
 
-    def test_overheated_price_downgrades_a_plus_to_strong(self) -> None:
+    def test_a_plus_accepts_negative_but_rising_h4_and_daily_histograms(self) -> None:
+        signal = classify_market_radar_signal(
+            {
+                "1H": assessment(MomentumState.BULLISH_EXPANSION),
+                "2H": assessment(MomentumState.BULLISH_CROSS),
+                "4H": assessment(MomentumState.BEARISH_RECOVERY),
+                "1D": assessment(MomentumState.BEARISH_RECOVERY),
+            },
+            full_sync_confirmation_candles=2,
+        )
+        self.assertEqual(signal, MarketRadarSignal.FULL_SYNC)
+
+    def test_overheated_price_vetoes_all_alerts(self) -> None:
         signal = classify_market_radar_signal(
             {
                 "1H": assessment(
@@ -106,6 +147,23 @@ class MarketRadarClassificationTests(unittest.TestCase):
                 "2H": assessment(MomentumState.BULLISH_EXPANSION),
                 "4H": assessment(MomentumState.BULLISH_EXPANSION),
                 "1D": assessment(MomentumState.BULLISH_EXPANSION),
+            },
+            full_sync_confirmation_candles=2,
+        )
+        self.assertEqual(signal, MarketRadarSignal.NONE)
+
+    def test_failed_h4_sma_filter_downgrades_a_plus_to_strong(self) -> None:
+        signal = classify_market_radar_signal(
+            {
+                "1H": assessment(MomentumState.BULLISH_EXPANSION),
+                "2H": assessment(MomentumState.BULLISH_EXPANSION),
+                "4H": assessment(
+                    MomentumState.BEARISH_RECOVERY,
+                    close=99.0,
+                    sma20=100.0,
+                    sma20_slope=-1.0,
+                ),
+                "1D": assessment(MomentumState.BEARISH_RECOVERY),
             },
             full_sync_confirmation_candles=2,
         )

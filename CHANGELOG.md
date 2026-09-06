@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.1
+
+- Required a rising MACD histogram on 1H, 2H, 4H, and 1D for every radar signal.
+- Allowed negative H4 and 1D histograms when their normalized slopes are rising.
+- Made a positive but falling histogram a veto instead of treating its sign as confirmation.
+- Limited the H4 SMA trend filter to `A+`; early synchronized recovery remains visible.
+- Made extreme price stretch suppress every radar level.
+
 ## 1.9.0
 
 - Added an hourly radar over all live OKX USDT perpetual swaps.
