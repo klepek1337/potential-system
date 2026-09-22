@@ -410,28 +410,10 @@ def score_setup(
     current_price: float,
     minimum_normalized_histogram_slope: float,
 ) -> SetupScore:
-    scores = tuple(
-        _score_direction(
-            direction,
-            assessments_by_timeframe,
-            one_hour_candles,
-            current_price,
-            minimum_normalized_histogram_slope,
-        )
-        for direction in SetupDirection
+    return _score_direction(
+        SetupDirection.LONG,
+        assessments_by_timeframe,
+        one_hour_candles,
+        current_price,
+        minimum_normalized_histogram_slope,
     )
-    long_score, short_score = scores
-    if long_score.total == short_score.total and long_score.total > 0:
-        return SetupScore(
-            direction=long_score.direction,
-            grade=SetupGrade.NONE,
-            breakdown=ScoreBreakdown(),
-            histogram_directions=long_score.histogram_directions,
-            synchronized_timeframes=(),
-            nearest_sma_period=long_score.nearest_sma_period,
-            nearest_sma_distance_percent=long_score.nearest_sma_distance_percent,
-            nearby_sma_periods=(),
-            crossed_sma_periods=(),
-            price_broken_sma_periods=(),
-        )
-    return max(scores, key=lambda score: score.total)

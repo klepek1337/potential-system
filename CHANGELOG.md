@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.3
+
+- Disabled SHORT scoring in the perpetual market radar.
+- Added a second LONG-only guard to the notification filter.
+- Reset radar state for the LONG-only signal definition.
+- Left manual position tracking unchanged.
+
 ## 2.0.2
 
 - Required negative MACD and signal-line values before counting a rising LONG timeframe.

@@ -112,7 +112,7 @@ class SetupScoringTests(unittest.TestCase):
         self.assertEqual(synchronization_points(("1H", "2H", "4H")), 9)
         self.assertEqual(synchronization_points(("1H", "2H", "4H", "1D")), 12)
 
-    def test_long_and_short_are_scored_independently(self) -> None:
+    def test_short_pattern_is_ignored_by_long_only_radar(self) -> None:
         score = score_setup(
             {
                 "1H": assessment(-0.01),
@@ -124,9 +124,10 @@ class SetupScoringTests(unittest.TestCase):
             current_price=100.0,
             minimum_normalized_histogram_slope=0.001,
         )
-        self.assertEqual(score.direction, SetupDirection.SHORT)
-        self.assertEqual(score.synchronized_timeframes, ("1H", "2H", "4H"))
-        self.assertGreaterEqual(score.total, 9)
+        self.assertEqual(score.direction, SetupDirection.LONG)
+        self.assertEqual(score.synchronized_timeframes, ("1D",))
+        self.assertEqual(score.total, 0)
+        self.assertEqual(score.grade, SetupGrade.NONE)
 
     def test_extreme_one_hour_sma_proximity_gets_three_points(self) -> None:
         score = score_setup(
@@ -204,7 +205,8 @@ class MarketRadarNotificationTests(unittest.TestCase):
         self.assertTrue(should_notify_score("long:valid", strong_long))
         self.assertFalse(should_notify_score("long:a_plus_full_sync", strong_long))
         self.assertFalse(should_notify_score(None, weak_long))
-        self.assertTrue(should_notify_score("long:valid", valid_short))
+        self.assertFalse(should_notify_score(None, valid_short))
+        self.assertFalse(should_notify_score("long:valid", valid_short))
 
     def test_out_of_range_score_resets_notification_state(self) -> None:
         strong_long = setup_score(SetupDirection.LONG, SetupGrade.STRONG)

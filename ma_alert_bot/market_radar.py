@@ -6,7 +6,13 @@ from typing import Protocol
 
 from ma_alert_bot.models import Candle
 from ma_alert_bot.okx_client import OkxMarketDataClient, PerpetualInstrument, PerpetualTicker
-from ma_alert_bot.setup_scoring import GRADE_RANK, SetupGrade, SetupScore, score_setup
+from ma_alert_bot.setup_scoring import (
+    GRADE_RANK,
+    SetupDirection,
+    SetupGrade,
+    SetupScore,
+    score_setup,
+)
 from ma_alert_bot.state_store import AlertStateStore
 from ma_alert_bot.szpont_analysis import (
     SZPONT_TIMEFRAMES,
@@ -22,8 +28,8 @@ TELEGRAM_SAFE_MESSAGE_LENGTH = 3_900
 MINIMUM_DAILY_CONFIRMED_CANDLES = 60
 MINIMUM_NOTIFICATION_SCORE = 9
 DAILY_TIMEFRAME = "1D"
-RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v5:last_scan_slot"
-RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v5:signal:"
+RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v6:last_scan_slot"
+RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v6:signal:"
 
 
 class MessageSender(Protocol):
@@ -68,7 +74,10 @@ def select_eligible_instruments(
 
 
 def is_notification_score(score: SetupScore) -> bool:
-    return score.total >= MINIMUM_NOTIFICATION_SCORE
+    return (
+        score.direction is SetupDirection.LONG
+        and score.total >= MINIMUM_NOTIFICATION_SCORE
+    )
 
 
 def notification_state_for_score(score: SetupScore) -> str:
@@ -106,7 +115,7 @@ def build_market_radar_report(candidates: list[MarketRadarCandidate]) -> str:
         SetupGrade.GOOD: "🟢 GOOD",
         SetupGrade.VALID: "🟡 VALID",
     }
-    lines = ["📡 SZPONT — setupy perpetual 9+ pkt"]
+    lines = ["📡 SZPONT — setupy LONG perpetual 9+ pkt"]
     for grade in (
         SetupGrade.FULL_SYNC,
         SetupGrade.STRONG,

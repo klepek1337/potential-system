@@ -202,16 +202,17 @@ zamknąć pozycji, wykonać wypłaty ani złożyć zlecenia.
 
 Co godzinę, 90 sekund po zamknięciu świecy, bot pobiera tę samą listę aktywnych
 perpetual USDT z OKX. Nadal odrzuca instrumenty z małym obrotem, szerokim spreadem
-albo historią krótszą niż 60 dni. Dla pozostałych punktuje LONG i SHORT niezależnie.
+albo historią krótszą niż 60 dni. Dla pozostałych punktuje wyłącznie setupy LONG.
+Setupy SHORT są objęte twardym zakazem: nie są oceniane ani wysyłane.
 
 Kierunek histogramu jest liczony na zamkniętych `1H`, `2H`, `4H` oraz na `1D LIVE`,
 gdzie aktualna cena zastępuje tymczasowe zamknięcie bieżącej świecy dziennej.
 Minimum to dwa zgodne interwały. Punkty synchronizacji: 2 TF = 4, 3 TF = 7,
 4 TF = 10, plus maksymalnie 2 punkty za ciągłe pary `1H+2H`, `2H+4H`, `4H+1D`.
 Interwał może wejść do synchronizacji LONG wyłącznie wtedy, gdy MACD i signal line
-są poniżej zera, a histogram rośnie. Dla SHORT obowiązuje lustrzany filtr: MACD
-i signal line muszą być powyżej zera, a histogram musi maleć. Sama zmiana histogramu
-bez właściwego położenia obu linii jest traktowana jako brak kwalifikacji na tym TF.
+są poniżej zera, a histogram rośnie. Spadkowy układ histogramu nie jest kandydatem
+radaru, niezależnie od punktów struktury SMA. Sama zmiana histogramu bez właściwego
+położenia obu linii jest traktowana jako brak kwalifikacji na tym TF.
 
 Struktura wejścia jest liczona na `1H` dla SMA20/50/100/200:
 
