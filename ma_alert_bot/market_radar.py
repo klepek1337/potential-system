@@ -22,8 +22,8 @@ TELEGRAM_SAFE_MESSAGE_LENGTH = 3_900
 MINIMUM_DAILY_CONFIRMED_CANDLES = 60
 MINIMUM_NOTIFICATION_SCORE = 9
 DAILY_TIMEFRAME = "1D"
-RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v4:last_scan_slot"
-RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v4:signal:"
+RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v5:last_scan_slot"
+RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v5:signal:"
 
 
 class MessageSender(Protocol):

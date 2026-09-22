@@ -106,14 +106,20 @@ class SetupScore:
         return f"{self.direction.value}:{self.grade.value}"
 
 
-def histogram_direction(
+def qualified_histogram_direction(
     assessment: TimeframeMomentumAssessment,
     minimum_normalized_histogram_slope: float,
 ) -> HistogramDirection:
     slope = assessment.normalized_histogram_slope
-    if slope >= minimum_normalized_histogram_slope:
+    macd_and_signal_are_negative = (
+        assessment.macd_line < 0 and assessment.signal_line < 0
+    )
+    macd_and_signal_are_positive = (
+        assessment.macd_line > 0 and assessment.signal_line > 0
+    )
+    if slope >= minimum_normalized_histogram_slope and macd_and_signal_are_negative:
         return HistogramDirection.UP
-    if slope <= -minimum_normalized_histogram_slope:
+    if slope <= -minimum_normalized_histogram_slope and macd_and_signal_are_positive:
         return HistogramDirection.DOWN
     return HistogramDirection.FLAT
 
@@ -257,7 +263,7 @@ def _score_direction(
     minimum_normalized_histogram_slope: float,
 ) -> SetupScore:
     directions = {
-        timeframe: histogram_direction(
+        timeframe: qualified_histogram_direction(
             assessments_by_timeframe[timeframe],
             minimum_normalized_histogram_slope,
         )

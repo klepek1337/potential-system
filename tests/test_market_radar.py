@@ -17,6 +17,7 @@ from ma_alert_bot.setup_scoring import (
     SetupGrade,
     SetupScore,
     classify_grade,
+    qualified_histogram_direction,
     score_setup,
     synchronization_points,
 )
@@ -25,9 +26,17 @@ CURRENT_TIMESTAMP_MS = 2_000_000_000_000
 ONE_DAY_MS = 86_400_000
 
 
-def assessment(slope: float, levels: dict[int, float] | None = None) -> SimpleNamespace:
+def assessment(
+    slope: float,
+    levels: dict[int, float] | None = None,
+    macd_line: float | None = None,
+    signal_line: float | None = None,
+) -> SimpleNamespace:
+    default_line_value = -1.0 if slope > 0 else 1.0
     return SimpleNamespace(
         normalized_histogram_slope=slope,
+        macd_line=macd_line if macd_line is not None else default_line_value,
+        signal_line=signal_line if signal_line is not None else default_line_value,
         moving_average_levels=levels or {20: 100.0, 50: 100.0, 100: 100.0, 200: 100.0},
     )
 
@@ -65,6 +74,38 @@ def setup_score(direction: SetupDirection, grade: SetupGrade) -> SetupScore:
 
 
 class SetupScoringTests(unittest.TestCase):
+    def test_negative_macd_and_signal_with_rising_histogram_qualifies_long(self) -> None:
+        direction = qualified_histogram_direction(
+            assessment(0.01, macd_line=-0.0004, signal_line=-0.0004),
+            minimum_normalized_histogram_slope=0.001,
+        )
+
+        self.assertEqual(direction, HistogramDirection.UP)
+
+    def test_positive_macd_and_signal_veto_rising_histogram_long(self) -> None:
+        direction = qualified_histogram_direction(
+            assessment(0.01, macd_line=0.0004, signal_line=0.0003),
+            minimum_normalized_histogram_slope=0.001,
+        )
+
+        self.assertEqual(direction, HistogramDirection.FLAT)
+
+    def test_positive_macd_and_signal_with_falling_histogram_qualifies_short(self) -> None:
+        direction = qualified_histogram_direction(
+            assessment(-0.01, macd_line=0.0004, signal_line=0.0010),
+            minimum_normalized_histogram_slope=0.001,
+        )
+
+        self.assertEqual(direction, HistogramDirection.DOWN)
+
+    def test_negative_macd_and_signal_veto_falling_histogram_short(self) -> None:
+        direction = qualified_histogram_direction(
+            assessment(-0.01, macd_line=-0.0004, signal_line=-0.0003),
+            minimum_normalized_histogram_slope=0.001,
+        )
+
+        self.assertEqual(direction, HistogramDirection.FLAT)
+
     def test_synchronization_requires_at_least_two_timeframes(self) -> None:
         self.assertEqual(synchronization_points(("1H",)), 0)
         self.assertEqual(synchronization_points(("1H", "2H")), 5)

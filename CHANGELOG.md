@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.2
+
+- Required negative MACD and signal-line values before counting a rising LONG timeframe.
+- Required positive MACD and signal-line values before counting a falling SHORT timeframe.
+- Prevented SMA structure points from rescuing setups without two qualified timeframes.
+- Reset radar state for the stricter synchronization definition.
+
 ## 2.0.1
 
 - Suppressed all `WEAK` radar candidates below 9 points.
