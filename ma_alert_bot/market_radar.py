@@ -20,9 +20,10 @@ MILLISECONDS_PER_DAY = 86_400_000
 SECONDS_PER_HOUR = 3_600
 TELEGRAM_SAFE_MESSAGE_LENGTH = 3_900
 MINIMUM_DAILY_CONFIRMED_CANDLES = 60
+MINIMUM_NOTIFICATION_SCORE = 9
 DAILY_TIMEFRAME = "1D"
-RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v3:last_scan_slot"
-RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v3:signal:"
+RADAR_LAST_SCAN_SLOT_STATE_KEY = "market_radar:v4:last_scan_slot"
+RADAR_SIGNAL_STATE_KEY_PREFIX = "market_radar:v4:signal:"
 
 
 class MessageSender(Protocol):
@@ -66,6 +67,16 @@ def select_eligible_instruments(
     return tuple(sorted(eligible, key=lambda pair: pair[1].quote_notional_24h, reverse=True))
 
 
+def is_notification_score(score: SetupScore) -> bool:
+    return score.total >= MINIMUM_NOTIFICATION_SCORE
+
+
+def notification_state_for_score(score: SetupScore) -> str:
+    if not is_notification_score(score):
+        return SetupGrade.NONE.value
+    return score.state_value
+
+
 def _parse_previous_state(previous_state_value: str | None) -> tuple[str | None, SetupGrade]:
     if not previous_state_value:
         return None, SetupGrade.NONE
@@ -78,7 +89,7 @@ def _parse_previous_state(previous_state_value: str | None) -> tuple[str | None,
 
 def should_notify_score(previous_state_value: str | None, score: SetupScore) -> bool:
     previous_direction, previous_grade = _parse_previous_state(previous_state_value)
-    return score.grade is not SetupGrade.NONE and (
+    return is_notification_score(score) and (
         previous_direction != score.direction.value
         or GRADE_RANK[score.grade] > GRADE_RANK[previous_grade]
     )
@@ -94,15 +105,13 @@ def build_market_radar_report(candidates: list[MarketRadarCandidate]) -> str:
         SetupGrade.STRONG: "🔥 STRONG",
         SetupGrade.GOOD: "🟢 GOOD",
         SetupGrade.VALID: "🟡 VALID",
-        SetupGrade.WEAK: "⚪ WEAK",
     }
-    lines = ["📡 SZPONT — nowe setupy perpetual"]
+    lines = ["📡 SZPONT — setupy perpetual 9+ pkt"]
     for grade in (
         SetupGrade.FULL_SYNC,
         SetupGrade.STRONG,
         SetupGrade.GOOD,
         SetupGrade.VALID,
-        SetupGrade.WEAK,
     ):
         matching = [candidate for candidate in candidates if candidate.score.grade is grade]
         if not matching:
@@ -241,11 +250,7 @@ class MarketRadar:
                 continue
             state_key = RADAR_SIGNAL_STATE_KEY_PREFIX + instrument.instrument_id
             previous_state = self._state_store.get_runtime_state(state_key)
-            current_state = (
-                score.state_value
-                if score.grade is not SetupGrade.NONE
-                else SetupGrade.NONE.value
-            )
+            current_state = notification_state_for_score(score)
             evaluated_states.append((state_key, current_state))
             if not should_notify_score(previous_state, score):
                 continue

@@ -1,11 +1,11 @@
 """Application version and the release note shown on startup."""
 
 
-CURRENT_VERSION = "2.0.0"
-CURRENT_RELEASE_TITLE = "Punktowy radar synchronizacji i SMA"
+CURRENT_VERSION = "2.0.1"
+CURRENT_RELEASE_TITLE = "Radar od 9 punktów"
 CURRENT_RELEASE_CHANGES = (
-    "LONG i SHORT są punktowane niezależnie w skali 0-28",
-    "synchronizacja obejmuje 1H, 2H, 4H oraz 1D LIVE",
-    "wynik uwzględnia bliskość, klastry, przecięcia, wybicia i respekt SMA",
-    "uniwersum oraz filtry płynności perpetual pozostają bez zmian",
+    "alerty WEAK poniżej 9 punktów są odrzucane",
+    "VALID, GOOD, STRONG i A+ FULL SYNC pozostają widoczne",
+    "najmocniejsze setupy są wyświetlane na początku raportu",
+    "powrót z wyniku poniżej 9 punktów może wygenerować nowy alert",
 )

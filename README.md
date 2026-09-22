@@ -222,7 +222,9 @@ Struktura wejścia jest liczona na `1H` dla SMA20/50/100/200:
 Łączny wynik ma maksymalnie 28 punktów: `WEAK` 4–8, `VALID` 9–13,
 `GOOD` 14–18, `STRONG` 19–23, `A+ FULL SYNC` 24–28. `STRONG` wymaga
 co najmniej jednego potwierdzenia strukturalnego SMA i nie może powstać wyłącznie
-z histogramu.
+z histogramu. Telegram przepuszcza wyłącznie setupy od 9 punktów wzwyż, czyli
+`VALID`, `GOOD`, `STRONG` i `A+ FULL SYNC`. Wyniki `WEAK` pozostają obliczane,
+ale są odrzucane przed zbudowaniem raportu.
 
 Stan jest zapisywany w SQLite. Ten sam symbol i ten sam poziom nie są ponownie
 wysyłane; brak setupu nie generuje wiadomości. Wszystkie nowe setupy z jednego

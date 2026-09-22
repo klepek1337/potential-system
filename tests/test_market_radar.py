@@ -1,7 +1,13 @@
 import unittest
 from types import SimpleNamespace
 
-from ma_alert_bot.market_radar import select_eligible_instruments, should_notify_score
+from ma_alert_bot.market_radar import (
+    MarketRadarCandidate,
+    build_market_radar_report,
+    notification_state_for_score,
+    select_eligible_instruments,
+    should_notify_score,
+)
 from ma_alert_bot.models import Candle
 from ma_alert_bot.okx_client import PerpetualInstrument, PerpetualTicker
 from ma_alert_bot.setup_scoring import (
@@ -34,10 +40,18 @@ def flat_candles(count: int = 205) -> tuple[Candle, ...]:
 
 
 def setup_score(direction: SetupDirection, grade: SetupGrade) -> SetupScore:
+    points_by_grade = {
+        SetupGrade.NONE: 0,
+        SetupGrade.WEAK: 4,
+        SetupGrade.VALID: 9,
+        SetupGrade.GOOD: 14,
+        SetupGrade.STRONG: 19,
+        SetupGrade.FULL_SYNC: 24,
+    }
     return SetupScore(
         direction=direction,
         grade=grade,
-        breakdown=ScoreBreakdown(synchronization=4),
+        breakdown=ScoreBreakdown(synchronization=points_by_grade[grade]),
         histogram_directions={
             timeframe: HistogramDirection.UP for timeframe in ("1H", "2H", "4H", "1D")
         },
@@ -139,15 +153,55 @@ class MarketRadarLiquidityTests(unittest.TestCase):
 
 
 class MarketRadarNotificationTests(unittest.TestCase):
-    def test_only_new_stronger_or_opposite_setup_is_notified(self) -> None:
+    def test_only_nine_point_or_better_setup_is_notified(self) -> None:
         valid_long = setup_score(SetupDirection.LONG, SetupGrade.VALID)
         strong_long = setup_score(SetupDirection.LONG, SetupGrade.STRONG)
+        weak_long = setup_score(SetupDirection.LONG, SetupGrade.WEAK)
         valid_short = setup_score(SetupDirection.SHORT, SetupGrade.VALID)
         self.assertTrue(should_notify_score(None, valid_long))
         self.assertFalse(should_notify_score("long:valid", valid_long))
         self.assertTrue(should_notify_score("long:valid", strong_long))
         self.assertFalse(should_notify_score("long:a_plus_full_sync", strong_long))
+        self.assertFalse(should_notify_score(None, weak_long))
         self.assertTrue(should_notify_score("long:valid", valid_short))
+
+    def test_out_of_range_score_resets_notification_state(self) -> None:
+        strong_long = setup_score(SetupDirection.LONG, SetupGrade.STRONG)
+        valid_long = setup_score(SetupDirection.LONG, SetupGrade.VALID)
+
+        weak_long = setup_score(SetupDirection.LONG, SetupGrade.WEAK)
+
+        self.assertEqual(notification_state_for_score(strong_long), "long:strong")
+        self.assertEqual(notification_state_for_score(weak_long), "none")
+        self.assertEqual(notification_state_for_score(valid_long), "long:valid")
+        self.assertTrue(should_notify_score("none", valid_long))
+
+    def test_report_orders_all_qualifying_grades_from_strongest(self) -> None:
+        candidates = [
+            MarketRadarCandidate(
+                "VALID-USDT-SWAP",
+                setup_score(SetupDirection.LONG, SetupGrade.VALID),
+                10_000_000.0,
+                0.001,
+            ),
+            MarketRadarCandidate(
+                "STRONG-USDT-SWAP",
+                setup_score(SetupDirection.LONG, SetupGrade.STRONG),
+                10_000_000.0,
+                0.001,
+            ),
+            MarketRadarCandidate(
+                "GOOD-USDT-SWAP",
+                setup_score(SetupDirection.LONG, SetupGrade.GOOD),
+                10_000_000.0,
+                0.001,
+            ),
+        ]
+
+        report = build_market_radar_report(candidates)
+
+        self.assertLess(report.index("STRONG-USDT-SWAP"), report.index("GOOD-USDT-SWAP"))
+        self.assertLess(report.index("GOOD-USDT-SWAP"), report.index("VALID-USDT-SWAP"))
 
 
 if __name__ == "__main__":

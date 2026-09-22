@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1
+
+- Suppressed all `WEAK` radar candidates below 9 points.
+- Kept `VALID`, `GOOD`, `STRONG`, and `A+ FULL SYNC` alerts, ordered strongest first.
+- Reset notification state below 9 points so a later qualifying re-entry can alert again.
+
 ## 2.0.0
 
 - Replaced the old `BUILDING`/expansion radar with a symmetric LONG/SHORT score.
