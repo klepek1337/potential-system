@@ -6,6 +6,7 @@ from ma_alert_bot.szpont_analysis import (
     LongOverheatState,
     MomentumState,
     SynchronizationState,
+    assess_live_timeframe,
     assess_timeframe,
     classify_long_overheat,
     classify_momentum_state,
@@ -116,6 +117,19 @@ class MomentumClassificationTests(unittest.TestCase):
 
         self.assertEqual(set(assessment.moving_average_levels), {20, 50})
         self.assertEqual(set(assessment.moving_average_slopes), {20, 50})
+
+    def test_live_daily_assessment_uses_current_price_as_temporary_close(self) -> None:
+        candles = build_trending_candles(60, latest_unconfirmed_close=160.0)
+
+        assessment = assess_live_timeframe(
+            "1D",
+            candles,
+            live_price=220.0,
+            minimum_candles=61,
+        )
+
+        self.assertEqual(assessment.closing_price, 220.0)
+        self.assertEqual(assessment.candle_timestamp_ms, candles[-1].opening_timestamp_ms)
 
 
 class SynchronizationTests(unittest.TestCase):

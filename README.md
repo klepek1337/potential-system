@@ -200,21 +200,29 @@ zamknąć pozycji, wykonać wypłaty ani złożyć zlecenia.
 
 ### Radar wszystkich perpetual
 
-Co godzinę, 90 sekund po zamknięciu świecy, bot pobiera listę aktywnych perpetual
-USDT z OKX. Najpierw odrzuca instrumenty z małym obrotem, szerokim spreadem albo
-historią krótszą niż 60 dni. Dla pozostałych liczy wyłącznie zamknięte świece
-`1H`, `2H`, `4H` oraz `1D` i wysyła tylko nowe przejścia do jednego z trzech stanów:
+Co godzinę, 90 sekund po zamknięciu świecy, bot pobiera tę samą listę aktywnych
+perpetual USDT z OKX. Nadal odrzuca instrumenty z małym obrotem, szerokim spreadem
+albo historią krótszą niż 60 dni. Dla pozostałych punktuje LONG i SHORT niezależnie.
 
-- `BUILDING`: histogramy 1H, 2H, 4H i 1D jednocześnie rosną, ale H4 lub D1 nie ma
-  jeszcze wymaganej liczby potwierdzonych zamknięć;
-- `STRONG`: wszystkie cztery histogramy rosną, a H4 i D1 robią to przez minimum
-  dwie zamknięte świece; ich wartości mogą nadal znajdować się pod zerem;
-- `A+ FULL SYNC`: wszystkie cztery histogramy rosną przez minimum dwie zamknięte
-  świece, filtr SMA H4 przechodzi i cena nie jest przegrzana.
+Kierunek histogramu jest liczony na zamkniętych `1H`, `2H`, `4H` oraz na `1D LIVE`,
+gdzie aktualna cena zastępuje tymczasowe zamknięcie bieżącej świecy dziennej.
+Minimum to dwa zgodne interwały. Punkty synchronizacji: 2 TF = 4, 3 TF = 7,
+4 TF = 10, plus maksymalnie 2 punkty za ciągłe pary `1H+2H`, `2H+4H`, `4H+1D`.
 
-Znak histogramu nie decyduje o synchronizacji. `bearish_recovery`, czyli ujemny,
-ale rosnący histogram, przechodzi. Dodatni histogram, który zaczyna maleć, blokuje
-sygnał. Skrajne rozciągnięcie ceny blokuje wszystkie trzy poziomy.
+Struktura wejścia jest liczona na `1H` dla SMA20/50/100/200:
+
+- ekstremalna bliskość ceny do SMA: do 0,10% = 3 pkt, do 0,25% = 2 pkt,
+  do 0,50% = 1 pkt;
+- wsparcie/opór, test knotem i respekt korpusem: maksymalnie 3 pkt;
+- klaster 2/3/4 SMA w odległości do 0,50%: 1/2/3 pkt;
+- przecięcia 2/3/4 SMA w ostatnich 3 świecach: 1/2/3 pkt;
+- przebicie ceną 2 albo 3–4 SMA: 1 albo 2 pkt;
+- utrzymanie po przecięciu: 1–2 pkt, natychmiastowe zanegowanie: −2 pkt.
+
+Łączny wynik ma maksymalnie 28 punktów: `WEAK` 4–8, `VALID` 9–13,
+`GOOD` 14–18, `STRONG` 19–23, `A+ FULL SYNC` 24–28. `STRONG` wymaga
+co najmniej jednego potwierdzenia strukturalnego SMA i nie może powstać wyłącznie
+z histogramu.
 
 Stan jest zapisywany w SQLite. Ten sam symbol i ten sam poziom nie są ponownie
 wysyłane; brak setupu nie generuje wiadomości. Wszystkie nowe setupy z jednego
@@ -229,7 +237,6 @@ MARKET_RADAR_MAXIMUM_SPREAD_PERCENT=0.30
 MARKET_RADAR_MINIMUM_LISTING_AGE_DAYS=60
 MARKET_RADAR_CANDLE_CONFIRMATION_DELAY_SECONDS=90
 MARKET_RADAR_REQUEST_DELAY_SECONDS=0.12
-MARKET_RADAR_FULL_SYNC_CONFIRMATION_CANDLES=2
 ```
 
 Never commit `.env` or paste the bot token into source code.

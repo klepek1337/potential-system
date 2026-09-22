@@ -169,9 +169,6 @@ def main() -> None:
             settings.market_radar_candle_confirmation_delay_seconds
         ),
         request_delay_seconds=settings.market_radar_request_delay_seconds,
-        full_sync_confirmation_candles=(
-            settings.market_radar_full_sync_confirmation_candles
-        ),
     )
 
     try:

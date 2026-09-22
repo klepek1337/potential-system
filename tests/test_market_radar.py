@@ -1,173 +1,115 @@
 import unittest
 from types import SimpleNamespace
 
-from ma_alert_bot.market_radar import (
-    MarketRadarSignal,
-    classify_market_radar_signal,
-    select_eligible_instruments,
-    should_notify_signal,
-)
+from ma_alert_bot.market_radar import select_eligible_instruments, should_notify_score
+from ma_alert_bot.models import Candle
 from ma_alert_bot.okx_client import PerpetualInstrument, PerpetualTicker
-from ma_alert_bot.szpont_analysis import (
-    LongOverheatState,
-    MomentumState,
-    MovingAverageStructure,
+from ma_alert_bot.setup_scoring import (
+    HistogramDirection,
+    ScoreBreakdown,
+    SetupDirection,
+    SetupGrade,
+    SetupScore,
+    classify_grade,
+    score_setup,
+    synchronization_points,
 )
 
 CURRENT_TIMESTAMP_MS = 2_000_000_000_000
 ONE_DAY_MS = 86_400_000
 
 
-def assessment(
-    state: MomentumState,
-    *,
-    overheat: LongOverheatState = LongOverheatState.NORMAL,
-    confirmation_candles: int = 2,
-    close: float = 101.0,
-    sma20: float = 100.0,
-    sma20_slope: float = 1.0,
-    structure: MovingAverageStructure = MovingAverageStructure.MIXED,
-) -> SimpleNamespace:
+def assessment(slope: float, levels: dict[int, float] | None = None) -> SimpleNamespace:
     return SimpleNamespace(
-        momentum_state=state,
-        long_overheat_state=overheat,
-        consecutive_rising_histogram_candles=confirmation_candles,
-        closing_price=close,
-        moving_average_levels={20: sma20},
-        moving_average_slopes={20: sma20_slope},
-        moving_average_structure=structure,
+        normalized_histogram_slope=slope,
+        moving_average_levels=levels or {20: 100.0, 50: 100.0, 100: 100.0, 200: 100.0},
     )
 
 
-class MarketRadarClassificationTests(unittest.TestCase):
-    def test_building_requires_every_histogram_to_rise_regardless_of_sign(self) -> None:
-        signal = classify_market_radar_signal(
-            {
-                "1H": assessment(MomentumState.BULLISH_CROSS, confirmation_candles=1),
-                "2H": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
-                "4H": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
-                "1D": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
-            },
-            full_sync_confirmation_candles=2,
-        )
-        self.assertEqual(signal, MarketRadarSignal.BUILDING)
+def flat_candles(count: int = 205) -> tuple[Candle, ...]:
+    return tuple(
+        Candle(index, 100.0, 100.2, 99.8, 100.0, True)
+        for index in range(count)
+    )
 
-    def test_strong_requires_confirmed_rising_h4_and_daily(self) -> None:
-        signal = classify_market_radar_signal(
-            {
-                "1H": assessment(MomentumState.BULLISH_CROSS, confirmation_candles=1),
-                "2H": assessment(MomentumState.BEARISH_RECOVERY, confirmation_candles=1),
-                "4H": assessment(
-                    MomentumState.BEARISH_RECOVERY,
-                    close=99.0,
-                    sma20=100.0,
-                    sma20_slope=-1.0,
-                ),
-                "1D": assessment(MomentumState.BEARISH_RECOVERY),
-            },
-            full_sync_confirmation_candles=2,
-        )
-        self.assertEqual(signal, MarketRadarSignal.STRONG)
 
-    def test_daily_neutral_histogram_vetoes_all_alerts(self) -> None:
-        signal = classify_market_radar_signal(
-            {
-                "1H": assessment(MomentumState.BULLISH_EXPANSION),
-                "2H": assessment(MomentumState.BULLISH_EXPANSION),
-                "4H": assessment(MomentumState.BEARISH_RECOVERY),
-                "1D": assessment(MomentumState.NEUTRAL_COMPRESSION),
-            },
-            full_sync_confirmation_candles=2,
-        )
-        self.assertEqual(signal, MarketRadarSignal.NONE)
+def setup_score(direction: SetupDirection, grade: SetupGrade) -> SetupScore:
+    return SetupScore(
+        direction=direction,
+        grade=grade,
+        breakdown=ScoreBreakdown(synchronization=4),
+        histogram_directions={
+            timeframe: HistogramDirection.UP for timeframe in ("1H", "2H", "4H", "1D")
+        },
+        synchronized_timeframes=("1H", "2H"),
+        nearest_sma_period=20,
+        nearest_sma_distance_percent=0.1,
+        nearby_sma_periods=(20,),
+        crossed_sma_periods=(),
+        price_broken_sma_periods=(),
+    )
 
-    def test_positive_but_falling_daily_histogram_vetoes_all_alerts(self) -> None:
-        signal = classify_market_radar_signal(
-            {
-                "1H": assessment(MomentumState.BULLISH_EXPANSION),
-                "2H": assessment(MomentumState.BULLISH_EXPANSION),
-                "4H": assessment(MomentumState.BEARISH_RECOVERY),
-                "1D": assessment(MomentumState.BULLISH_DECELERATION),
-            },
-            full_sync_confirmation_candles=2,
-        )
-        self.assertEqual(signal, MarketRadarSignal.NONE)
 
-    def test_h4_deceleration_vetoes_all_alerts(self) -> None:
-        signal = classify_market_radar_signal(
-            {
-                "1H": assessment(MomentumState.BULLISH_EXPANSION),
-                "2H": assessment(MomentumState.BULLISH_EXPANSION),
-                "4H": assessment(MomentumState.BULLISH_DECELERATION),
-                "1D": assessment(MomentumState.BULLISH_EXPANSION),
-            },
-            full_sync_confirmation_candles=2,
-        )
-        self.assertEqual(signal, MarketRadarSignal.NONE)
+class SetupScoringTests(unittest.TestCase):
+    def test_synchronization_requires_at_least_two_timeframes(self) -> None:
+        self.assertEqual(synchronization_points(("1H",)), 0)
+        self.assertEqual(synchronization_points(("1H", "2H")), 5)
+        self.assertEqual(synchronization_points(("1H", "2H", "4H")), 9)
+        self.assertEqual(synchronization_points(("1H", "2H", "4H", "1D")), 12)
 
-    def test_a_plus_requires_multi_candle_confirmation(self) -> None:
-        assessments = {
-            timeframe: assessment(MomentumState.BULLISH_EXPANSION)
-            for timeframe in ("1H", "2H", "4H", "1D")
-        }
-        assessments["1H"] = assessment(
-            MomentumState.BULLISH_EXPANSION, confirmation_candles=1
-        )
-        self.assertEqual(
-            classify_market_radar_signal(assessments, 2),
-            MarketRadarSignal.STRONG,
-        )
-        assessments["1H"] = assessment(
-            MomentumState.BULLISH_EXPANSION, confirmation_candles=2
-        )
-        self.assertEqual(
-            classify_market_radar_signal(assessments, 2),
-            MarketRadarSignal.FULL_SYNC,
-        )
-
-    def test_a_plus_accepts_negative_but_rising_h4_and_daily_histograms(self) -> None:
-        signal = classify_market_radar_signal(
+    def test_long_and_short_are_scored_independently(self) -> None:
+        score = score_setup(
             {
-                "1H": assessment(MomentumState.BULLISH_EXPANSION),
-                "2H": assessment(MomentumState.BULLISH_CROSS),
-                "4H": assessment(MomentumState.BEARISH_RECOVERY),
-                "1D": assessment(MomentumState.BEARISH_RECOVERY),
+                "1H": assessment(-0.01),
+                "2H": assessment(-0.01),
+                "4H": assessment(-0.01),
+                "1D": assessment(0.01),
             },
-            full_sync_confirmation_candles=2,
+            flat_candles(),
+            current_price=100.0,
+            minimum_normalized_histogram_slope=0.001,
         )
-        self.assertEqual(signal, MarketRadarSignal.FULL_SYNC)
+        self.assertEqual(score.direction, SetupDirection.SHORT)
+        self.assertEqual(score.synchronized_timeframes, ("1H", "2H", "4H"))
+        self.assertGreaterEqual(score.total, 9)
 
-    def test_overheated_price_vetoes_all_alerts(self) -> None:
-        signal = classify_market_radar_signal(
+    def test_extreme_one_hour_sma_proximity_gets_three_points(self) -> None:
+        score = score_setup(
             {
-                "1H": assessment(
-                    MomentumState.BULLISH_EXPANSION,
-                    overheat=LongOverheatState.HIGH,
-                ),
-                "2H": assessment(MomentumState.BULLISH_EXPANSION),
-                "4H": assessment(MomentumState.BULLISH_EXPANSION),
-                "1D": assessment(MomentumState.BULLISH_EXPANSION),
+                timeframe: assessment(0.01)
+                for timeframe in ("1H", "2H", "4H", "1D")
             },
-            full_sync_confirmation_candles=2,
+            flat_candles(),
+            current_price=100.05,
+            minimum_normalized_histogram_slope=0.001,
         )
-        self.assertEqual(signal, MarketRadarSignal.NONE)
+        self.assertEqual(score.breakdown.sma_proximity, 3)
+        self.assertEqual(score.breakdown.sma_cluster, 3)
+        self.assertEqual(score.grade, SetupGrade.STRONG)
 
-    def test_failed_h4_sma_filter_downgrades_a_plus_to_strong(self) -> None:
-        signal = classify_market_radar_signal(
+    def test_extreme_proximity_requires_one_hour_synchronization(self) -> None:
+        score = score_setup(
             {
-                "1H": assessment(MomentumState.BULLISH_EXPANSION),
-                "2H": assessment(MomentumState.BULLISH_EXPANSION),
-                "4H": assessment(
-                    MomentumState.BEARISH_RECOVERY,
-                    close=99.0,
-                    sma20=100.0,
-                    sma20_slope=-1.0,
-                ),
-                "1D": assessment(MomentumState.BEARISH_RECOVERY),
+                "1H": assessment(-0.01),
+                "2H": assessment(0.01),
+                "4H": assessment(0.01),
+                "1D": assessment(0.01),
             },
-            full_sync_confirmation_candles=2,
+            flat_candles(),
+            current_price=100.05,
+            minimum_normalized_histogram_slope=0.001,
         )
-        self.assertEqual(signal, MarketRadarSignal.STRONG)
+        self.assertEqual(score.direction, SetupDirection.LONG)
+        self.assertEqual(score.breakdown.sma_proximity, 0)
+
+    def test_maximum_breakdown_is_twenty_eight_points(self) -> None:
+        breakdown = ScoreBreakdown(12, 3, 3, 3, 3, 2, 2)
+        self.assertEqual(breakdown.total, 28)
+
+    def test_strong_requires_structural_confirmation(self) -> None:
+        self.assertEqual(classify_grade(22, False), SetupGrade.GOOD)
+        self.assertEqual(classify_grade(22, True), SetupGrade.STRONG)
+        self.assertEqual(classify_grade(24, True), SetupGrade.FULL_SYNC)
 
 
 class MarketRadarLiquidityTests(unittest.TestCase):
@@ -178,15 +120,9 @@ class MarketRadarLiquidityTests(unittest.TestCase):
             PerpetualInstrument("THIN-USDT-SWAP", CURRENT_TIMESTAMP_MS - 30 * ONE_DAY_MS),
         )
         tickers = {
-            "GOOD-USDT-SWAP": PerpetualTicker(
-                "GOOD-USDT-SWAP", 100.0, 99.9, 100.1, 100_000.0
-            ),
-            "NEW-USDT-SWAP": PerpetualTicker(
-                "NEW-USDT-SWAP", 100.0, 99.9, 100.1, 100_000.0
-            ),
-            "THIN-USDT-SWAP": PerpetualTicker(
-                "THIN-USDT-SWAP", 100.0, 99.0, 101.0, 1_000.0
-            ),
+            "GOOD-USDT-SWAP": PerpetualTicker("GOOD-USDT-SWAP", 100.0, 99.9, 100.1, 100_000.0),
+            "NEW-USDT-SWAP": PerpetualTicker("NEW-USDT-SWAP", 100.0, 99.9, 100.1, 100_000.0),
+            "THIN-USDT-SWAP": PerpetualTicker("THIN-USDT-SWAP", 100.0, 99.0, 101.0, 1_000.0),
         }
         eligible = select_eligible_instruments(
             instruments,
@@ -203,20 +139,15 @@ class MarketRadarLiquidityTests(unittest.TestCase):
 
 
 class MarketRadarNotificationTests(unittest.TestCase):
-    def test_only_new_or_stronger_setup_is_notified(self) -> None:
-        self.assertTrue(should_notify_signal(None, MarketRadarSignal.BUILDING))
-        self.assertFalse(
-            should_notify_signal("building", MarketRadarSignal.BUILDING)
-        )
-        self.assertTrue(
-            should_notify_signal("building", MarketRadarSignal.STRONG)
-        )
-        self.assertFalse(
-            should_notify_signal("a_plus_full_sync", MarketRadarSignal.STRONG)
-        )
-        self.assertFalse(
-            should_notify_signal("strong", MarketRadarSignal.NONE)
-        )
+    def test_only_new_stronger_or_opposite_setup_is_notified(self) -> None:
+        valid_long = setup_score(SetupDirection.LONG, SetupGrade.VALID)
+        strong_long = setup_score(SetupDirection.LONG, SetupGrade.STRONG)
+        valid_short = setup_score(SetupDirection.SHORT, SetupGrade.VALID)
+        self.assertTrue(should_notify_score(None, valid_long))
+        self.assertFalse(should_notify_score("long:valid", valid_long))
+        self.assertTrue(should_notify_score("long:valid", strong_long))
+        self.assertFalse(should_notify_score("long:a_plus_full_sync", strong_long))
+        self.assertTrue(should_notify_score("long:valid", valid_short))
 
 
 if __name__ == "__main__":

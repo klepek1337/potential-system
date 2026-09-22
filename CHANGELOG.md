@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0
+
+- Replaced the old `BUILDING`/expansion radar with a symmetric LONG/SHORT score.
+- Added 1H/2H/4H plus live-1D histogram synchronization with a two-timeframe minimum.
+- Added 1H SMA proximity, support/resistance, cluster, cross, price-break and respect points.
+- Added `WEAK`, `VALID`, `GOOD`, `STRONG`, and `A+ FULL SYNC` score bands up to 28 points.
+- Preserved the existing all-perpetual liquidity, spread, and listing-age universe filters.
+
 ## 1.9.2
 
 - Reduced the market radar's minimum confirmed D1 history from 202 to 60 candles.

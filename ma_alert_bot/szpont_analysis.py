@@ -382,6 +382,37 @@ def assess_timeframe(
     )
 
 
+def assess_live_timeframe(
+    timeframe: str,
+    candles: Sequence[Candle],
+    live_price: float,
+    minimum_normalized_histogram_slope: float = (
+        DEFAULT_MINIMUM_NORMALIZED_HISTOGRAM_SLOPE
+    ),
+    minimum_candles: int = MINIMUM_SUPPORTED_CONFIRMED_CANDLES,
+) -> TimeframeMomentumAssessment:
+    """Assess an unfinished candle after replacing its close with the live price."""
+    confirmed_candles = [candle for candle in candles if candle.is_confirmed]
+    open_candles = [candle for candle in candles if not candle.is_confirmed]
+    if not open_candles:
+        raise ValueError(f"{timeframe} has no unfinished candle for live assessment")
+    open_candle = open_candles[-1]
+    live_candle = Candle(
+        opening_timestamp_ms=open_candle.opening_timestamp_ms,
+        opening_price=open_candle.opening_price,
+        highest_price=max(open_candle.highest_price, live_price),
+        lowest_price=min(open_candle.lowest_price, live_price),
+        closing_price=live_price,
+        is_confirmed=True,
+    )
+    return assess_timeframe(
+        timeframe,
+        (*confirmed_candles, live_candle),
+        minimum_normalized_histogram_slope,
+        minimum_confirmed_candles=minimum_candles,
+    )
+
+
 def determine_synchronization_state(
     assessments_by_timeframe: dict[str, TimeframeMomentumAssessment],
 ) -> tuple[SynchronizationState, str]:
